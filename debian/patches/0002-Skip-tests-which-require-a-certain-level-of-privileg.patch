@@ -1,0 +1,163 @@
+From: Lucas Kanashiro <kanashiro@ubuntu.com>
+Date: Wed, 21 Jun 2023 16:35:33 -0300
+Subject: Skip tests which require a certain level of privilege
+
+Forwarded: not-needed
+Last-Updated: 2023-06-12
+
+During build we cannot bindmount sysfs and cgroupfs in a chroot which leads to
+failures.
+---
+ pkg/cri/server/container_create_linux_test.go           | 13 +++++++++++++
+ pkg/cri/server/container_create_test.go                 |  3 +++
+ pkg/cri/server/container_update_resources_linux_test.go |  1 +
+ 3 files changed, 17 insertions(+)
+
+diff --git a/pkg/cri/server/container_create_linux_test.go b/pkg/cri/server/container_create_linux_test.go
+index dd312a9..9af053f 100644
+--- a/pkg/cri/server/container_create_linux_test.go
++++ b/pkg/cri/server/container_create_linux_test.go
+@@ -194,6 +194,7 @@ func getCreateContainerTestData() (*runtime.ContainerConfig, *runtime.PodSandbox
+ }
+ 
+ func TestContainerCapabilities(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -274,6 +275,7 @@ func TestContainerCapabilities(t *testing.T) {
+ }
+ 
+ func TestContainerSpecTty(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -296,6 +298,7 @@ func TestContainerSpecTty(t *testing.T) {
+ }
+ 
+ func TestContainerSpecDefaultPath(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -318,6 +321,7 @@ func TestContainerSpecDefaultPath(t *testing.T) {
+ }
+ 
+ func TestContainerSpecReadonlyRootfs(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -335,6 +339,7 @@ func TestContainerSpecReadonlyRootfs(t *testing.T) {
+ }
+ 
+ func TestContainerSpecWithExtraMounts(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -396,6 +401,7 @@ func TestContainerSpecWithExtraMounts(t *testing.T) {
+ }
+ 
+ func TestContainerAndSandboxPrivileged(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -612,6 +618,7 @@ func TestContainerMounts(t *testing.T) {
+ }
+ 
+ func TestPrivilegedBindMount(t *testing.T) {
++	t.Skip("It requires privilege to mount sysfs and cgroupfs. Not achievable during the build.")
+ 	testPid := uint32(1234)
+ 	c := newTestCRIService()
+ 	testSandboxID := "sandbox-id"
+@@ -763,6 +770,7 @@ func TestMountPropagation(t *testing.T) {
+ }
+ 
+ func TestPidNamespace(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testPid := uint32(1234)
+ 	testSandboxID := "sandbox-id"
+@@ -981,6 +989,7 @@ func TestUserNamespace(t *testing.T) {
+ }
+ 
+ func TestNoDefaultRunMount(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testPid := uint32(1234)
+ 	testSandboxID := "sandbox-id"
+@@ -1286,6 +1295,7 @@ func TestGenerateApparmorSpecOpts(t *testing.T) {
+ }
+ 
+ func TestMaskedAndReadonlyPaths(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -1375,6 +1385,7 @@ func TestMaskedAndReadonlyPaths(t *testing.T) {
+ }
+ 
+ func TestHostname(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testSandboxID := "sandbox-id"
+ 	testContainerName := "container-name"
+@@ -1573,6 +1584,7 @@ func TestNonRootUserAndDevices(t *testing.T) {
+ }
+ 
+ func TestPrivilegedDevices(t *testing.T) {
++	t.Skip("It requires privilege to test devices. Not achievable during the build.")
+ 	testPid := uint32(1234)
+ 	c := newTestCRIService()
+ 	testSandboxID := "sandbox-id"
+@@ -1657,6 +1669,7 @@ func TestPrivilegedDevices(t *testing.T) {
+ }
+ 
+ func TestBaseOCISpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	c := newTestCRIService()
+ 	baseLimit := int64(100)
+ 	c.baseOCISpecs = map[string]*oci.Spec{
+diff --git a/pkg/cri/server/container_create_test.go b/pkg/cri/server/container_create_test.go
+index 0bec679..def9e58 100644
+--- a/pkg/cri/server/container_create_test.go
++++ b/pkg/cri/server/container_create_test.go
+@@ -56,6 +56,7 @@ func checkMount(t *testing.T, mounts []runtimespec.Mount, src, dest, typ string,
+ const testImageName = "container-image-name"
+ 
+ func TestGeneralContainerSpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testPid := uint32(1234)
+ 	containerConfig, sandboxConfig, imageConfig, specCheck := getCreateContainerTestData()
+@@ -69,6 +70,7 @@ func TestGeneralContainerSpec(t *testing.T) {
+ }
+ 
+ func TestPodAnnotationPassthroughContainerSpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	switch goruntime.GOOS {
+ 	case "darwin":
+ 		t.Skip("not implemented on Darwin")
+@@ -282,6 +284,7 @@ func TestVolumeMounts(t *testing.T) {
+ }
+ 
+ func TestContainerAnnotationPassthroughContainerSpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	switch goruntime.GOOS {
+ 	case "darwin":
+ 		t.Skip("not implemented on Darwin")
+diff --git a/pkg/cri/server/container_update_resources_linux_test.go b/pkg/cri/server/container_update_resources_linux_test.go
+index b303948..f3bad48 100644
+--- a/pkg/cri/server/container_update_resources_linux_test.go
++++ b/pkg/cri/server/container_update_resources_linux_test.go
+@@ -30,6 +30,7 @@ import (
+ )
+ 
+ func TestUpdateOCILinuxResource(t *testing.T) {
++	t.Skip("It requires some privileges not achievable during the build.")
+ 	oomscoreadj := new(int)
+ 	*oomscoreadj = -500
+ 	expectedSwap := func(swap int64) *int64 {

@@ -1,0 +1,3 @@
+Tests: basic-smoke
+Depends: ca-certificates, @
+Restrictions: allow-stderr isolation-machine needs-root

@@ -1,0 +1,5 @@
+containerd-app (1.7.2-0ubuntu1) mantic; urgency=medium
+
+  * Initial release. See LP #2022390.
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Tue, 20 Jun 2023 16:20:38 -0300

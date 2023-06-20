@@ -1,0 +1,70 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+
+include /usr/share/dpkg/pkg-info.mk
+
+export VERSION := $(DEB_VERSION_UPSTREAM)
+
+# temporary build path (see http://golang.org/doc/code.html#GOPATH)
+OUR_GOPATH := $(CURDIR)/.gopath
+export GOPATH := $(OUR_GOPATH)
+export GOCACHE := $(CURDIR)/.gocache
+
+# https://blog.golang.org/go116-module-changes (TODO figure out a new solution for Go 1.17+)
+export GO111MODULE := auto
+
+execute_before_dh_gencontrol:
+	# use "dh_golang" to generate "misc:Built-Using" (via "go list")
+	DH_GOLANG_BUILDPKG=' \
+		-tags "$(TAGS)" \
+		github.com/containerd/containerd/cmd/containerd \
+		github.com/containerd/containerd/cmd/containerd-shim \
+		github.com/containerd/containerd/cmd/containerd-shim-runc-v1 \
+		github.com/containerd/containerd/cmd/containerd-shim-runc-v2 \
+		github.com/containerd/containerd/cmd/containerd-stress \
+		github.com/containerd/containerd/cmd/ctr \
+	' dh_golang --builddirectory='$(OUR_GOPATH:$(CURDIR)/%=%)'
+
+override_dh_auto_configure:
+	# copy pristine source for "/usr/share/gocode" to get into "golang-github-containerd-containerd-dev" before we muddy it with build artifacts, etc
+	mkdir -p .pristine-source
+	tar -c --exclude=debian --exclude=.pc --exclude=.pristine-source --exclude=vendor . | tar -xC .pristine-source
+	# set up GOPATH symlink farm
+	mkdir -p '$(OUR_GOPATH)/src/github.com/containerd'
+	ln -sfT '$(CURDIR)' '$(OUR_GOPATH)/src/github.com/containerd/containerd'
+
+override_dh_auto_build:
+	cd '$(OUR_GOPATH)/src/github.com/containerd/containerd' \
+		&& make \
+			LDFLAGS='' \
+			VERSION='$(VERSION)' \
+			REVISION='' \
+			BUILDTAGS='$(TAGS)' \
+		&& make man
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+ifneq (arm, $(DEB_HOST_ARCH_CPU)) # skip the tests on armhf ("--- FAIL: TestParseSelector/linux (0.00s)  platforms_test.go:292: arm support not fully implemented: not implemented")
+	cd '$(OUR_GOPATH)/src/github.com/containerd/containerd' && make test SKIPTESTS='$(SKIP)'
+endif
+endif
+
+override_dh_auto_install:
+	make install DESTDIR='$(CURDIR)/debian/tmp' PREFIX='/usr'
+	make install-man DESTDIR='$(CURDIR)/debian/tmp' PREFIX='/usr'
+	mkdir -p debian/tmp/usr/share/gocode/src/github.com/containerd \
+		&& mv .pristine-source debian/tmp/usr/share/gocode/src/github.com/containerd/containerd
+
+execute_after_dh_installsystemd:
+	# replace "/usr/local/bin/containerd" with "/usr/bin/containerd" in our systemd service file
+	grep '/usr/local/bin/containerd' debian/*/lib/systemd/system/containerd.service \
+		&& sed -i 's!/usr/local/bin/containerd!/usr/bin/containerd!g' debian/*/lib/systemd/system/containerd.service \
+		&& ! grep '/usr/local/bin/containerd' debian/*/lib/systemd/system/containerd.service
+
+override_dh_dwz:
+	# do not call dh_dwz to avoid "dwz: Too few files for multifile optimization"
+	# dh_dwz --no-dwz-multifile also does not work :)
+
+%:
+	dh $@

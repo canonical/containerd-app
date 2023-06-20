@@ -1,0 +1,15 @@
+#!/bin/bash
+set -Eeuo pipefail
+set -x
+
+# start up containerd
+containerd &
+
+# pull the "busybox" image from Docker Hub
+ctr images pull docker.io/library/busybox:latest
+
+# run it and capture the output
+output="$(ctr run --rm docker.io/library/busybox:latest "test-$$-$RANDOM" echo success)"
+
+# ensure the output was exactly what we expected
+[ "$output" = 'success' ]
