@@ -1,0 +1,13 @@
+Description: Preserve debug info
+Last-Updated: 2023-06-20
+
+--- a/Makefile
++++ b/Makefile
+@@ -63,7 +63,6 @@
+ endif
+ 
+ ifndef GODEBUG
+-	EXTRA_LDFLAGS += -s -w
+ 	DEBUG_GO_GCFLAGS :=
+ 	DEBUG_TAGS :=
+ else

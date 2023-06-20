@@ -1,0 +1,5 @@
+version=4
+opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/containerd-$1\.tar\.gz/,\
+uversionmangle=s/(\d)[_\.\-\+]?((RC|rc|pre|dev|beta|alpha|preview)\d*)$/$1~$2/,\
+dversionmangle=s/[~+]ds\d*$// \
+  https://github.com/containerd/containerd/tags .*/v?(\d\S*)\.tar\.gz
