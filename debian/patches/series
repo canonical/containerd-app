@@ -4,3 +4,7 @@ preserve-debug-info.patch
 0001-disable-windows-support-in-ctr-metric.patch
 0005-Revert-Use-insecure.NewCredentials-instead-of-grpc.W.patch
 skip-test-setting-OOM-score-to-negative-number-in-unprivileged-mode.patch
+
+### sergiodj: I think it'd be worth using a more uniform patch naming
+### system, but that's a cosmetic issue so feel free to ignore my
+### comment.
