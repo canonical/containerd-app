@@ -1,6 +1,9 @@
 Description: Preserve debug info
 Last-Updated: 2023-06-20
 
+### sergiodj: you can put Forwarded: not-needed here just to silent
+### lintian.
+
 --- a/Makefile
 +++ b/Makefile
 @@ -63,7 +63,6 @@
