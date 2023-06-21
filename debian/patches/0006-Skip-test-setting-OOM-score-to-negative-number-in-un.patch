@@ -11,7 +11,7 @@ Bug: https://github.com/containerd/containerd/issues/8219
  1 file changed, 1 insertion(+)
 
 diff --git a/sys/oom_linux_test.go b/sys/oom_linux_test.go
-index 0c8f90b..1222d22 100644
+index 52e7c18..1865050 100644
 --- a/sys/oom_linux_test.go
 +++ b/sys/oom_linux_test.go
 @@ -48,6 +48,7 @@ func TestSetNegativeOomScoreAdjustmentWhenPrivileged(t *testing.T) {

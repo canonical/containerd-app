@@ -14,21 +14,7 @@ export GOCACHE := $(CURDIR)/.gocache
 # https://blog.golang.org/go116-module-changes (TODO figure out a new solution for Go 1.17+)
 export GO111MODULE := auto
 
-# riscv64 doesn't support cgo
-# https://github.com/golang/go/issues/36641
-ifeq (riscv64, $(DEB_BUILD_ARCH))
-TAGS += no_btrfs
-SKIP += github.com/containerd/containerd/snapshots/btrfs
-endif
-
-# build explicitly against Go 1.13 (for now):
-#   https://github.com/containerd/containerd/issues/4509
-#   https://github.com/containerd/containerd/pull/4050
-#   https://github.com/golang/go/issues/37942
-# (containerd 1.4+ and Go 1.15+ can go back to "golang-go")
-export PATH := /usr/lib/go-1.13/bin:$(PATH)
-
-override_dh_gencontrol:
+execute_before_dh_gencontrol:
 	# use "dh_golang" to generate "misc:Built-Using" (via "go list")
 	DH_GOLANG_BUILDPKG=' \
 		-tags "$(TAGS)" \
@@ -39,7 +25,6 @@ override_dh_gencontrol:
 		github.com/containerd/containerd/cmd/containerd-stress \
 		github.com/containerd/containerd/cmd/ctr \
 	' dh_golang --builddirectory='$(OUR_GOPATH:$(CURDIR)/%=%)'
-	dh_gencontrol
 
 override_dh_auto_configure:
 	# copy pristine source for "/usr/share/gocode" to get into "golang-github-containerd-containerd-dev" before we muddy it with build artifacts, etc
@@ -71,8 +56,7 @@ override_dh_auto_install:
 	mkdir -p debian/tmp/usr/share/gocode/src/github.com/containerd \
 		&& mv .pristine-source debian/tmp/usr/share/gocode/src/github.com/containerd/containerd
 
-override_dh_installsystemd:
-	dh_installsystemd
+execute_after_dh_installsystemd:
 	# replace "/usr/local/bin/containerd" with "/usr/bin/containerd" in our systemd service file
 	grep '/usr/local/bin/containerd' debian/*/lib/systemd/system/containerd.service \
 		&& sed -i 's!/usr/local/bin/containerd!/usr/bin/containerd!g' debian/*/lib/systemd/system/containerd.service \

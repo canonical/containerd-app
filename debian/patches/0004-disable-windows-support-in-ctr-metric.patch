@@ -5,10 +5,15 @@ Subject: disable windows support in ctr metric
 Forwarded: not-needed
 Last-Updated: 2023-06-12
 Reviewed-By: Lucas Kanashiro <kanashiro@ubuntu.com>
+---
+ cmd/ctr/commands/tasks/metrics.go | 77 ---------------------------------------
+ 1 file changed, 77 deletions(-)
 
+diff --git a/cmd/ctr/commands/tasks/metrics.go b/cmd/ctr/commands/tasks/metrics.go
+index 8004186..499aa66 100644
 --- a/cmd/ctr/commands/tasks/metrics.go
 +++ b/cmd/ctr/commands/tasks/metrics.go
-@@ -23,11 +23,9 @@
+@@ -23,11 +23,9 @@ import (
  	"os"
  	"text/tabwriter"
  
@@ -20,7 +25,7 @@ Reviewed-By: Lucas Kanashiro <kanashiro@ubuntu.com>
  	"github.com/containerd/typeurl/v2"
  	"github.com/urfave/cli"
  )
-@@ -75,8 +73,6 @@
+@@ -75,8 +73,6 @@ var metricsCommand = cli.Command{
  			data = &v1.Metrics{}
  		case typeurl.Is(metric.Data, (*v2.Metrics)(nil)):
  			data = &v2.Metrics{}
@@ -29,7 +34,7 @@ Reviewed-By: Lucas Kanashiro <kanashiro@ubuntu.com>
  		default:
  			return errors.New("cannot convert metric data to cgroups.Metrics or windows.Statistics")
  		}
-@@ -94,10 +90,6 @@
+@@ -94,10 +90,6 @@ var metricsCommand = cli.Command{
  				printCgroupMetricsTable(w, v)
  			case *v2.Metrics:
  				printCgroup2MetricsTable(w, v)
@@ -40,7 +45,7 @@ Reviewed-By: Lucas Kanashiro <kanashiro@ubuntu.com>
  			}
  			return w.Flush()
  		case formatJSON:
-@@ -151,72 +143,3 @@
+@@ -151,72 +143,3 @@ func printCgroup2MetricsTable(w *tabwriter.Writer, data *v2.Metrics) {
  		fmt.Fprintf(w, "memory.swap_limit\t%v\t\n", data.Memory.SwapLimit)
  	}
  }
