@@ -1,4 +1,4 @@
-containerd-app (1.7.2-0ubuntu1~23.04.1) UNRELEASED; urgency=medium
+containerd-app (1.7.2-0ubuntu1~23.04.1) lunar; urgency=medium
 
   * Backport version from Mantic to Lunar (LP: #2023694, #2022390).
 
