@@ -6,7 +6,7 @@ Uploaders: Lucas Kanashiro <kanashiro@ubuntu.com>
 Build-Depends: debhelper-compat (= 12),
                dh-golang,
                go-md2man,
-               golang-go,
+               golang-1.20-go,
                libbtrfs-dev | btrfs-progs (<< 4.16.1~),
                libseccomp-dev,
                pkg-config
