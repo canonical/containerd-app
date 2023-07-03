@@ -1,4 +1,4 @@
-containerd-app (1.7.2-0ubuntu1~22.04.1) UNRELEASED; urgency=medium
+containerd-app (1.7.2-0ubuntu1~22.04.1) jammy; urgency=medium
 
   * Backport version from Mantic to Jammy (LP: #2023694, #2022390).
     - Build with Go 1.20
