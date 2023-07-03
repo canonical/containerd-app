@@ -1,4 +1,4 @@
-containerd-app (1.7.2-0ubuntu1~20.04.1) UNRELEASED; urgency=medium
+containerd-app (1.7.2-0ubuntu1~20.04.1) focal; urgency=medium
 
   * Backport version from Mantic to Focal (LP: #2023694, #2022390).
     - Build with Go 1.20
