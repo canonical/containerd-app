@@ -1,4 +1,4 @@
-containerd-app (1.7.2-0ubuntu1~22.10.1) UNRELEASED; urgency=medium
+containerd-app (1.7.2-0ubuntu1~22.10.1) kinetic; urgency=medium
 
   * Backport version from Mantic to Kinetic (LP: #2023694, #2022390).
 
