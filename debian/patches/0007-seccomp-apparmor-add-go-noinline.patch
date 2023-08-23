@@ -1,0 +1,54 @@
+From: Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>
+Date: Tue, 15 Aug 2023 04:31:45 +0900
+Subject: seccomp, apparmor: add go:noinline
+
+Origin: backport, https://github.com/containerd/containerd/commit/0f043ae4
+---
+ contrib/apparmor/apparmor.go |  5 +++++
+ contrib/seccomp/seccomp.go   | 10 ++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/contrib/apparmor/apparmor.go b/contrib/apparmor/apparmor.go
+index 56454ab..12ff0c4 100644
+--- a/contrib/apparmor/apparmor.go
++++ b/contrib/apparmor/apparmor.go
+@@ -39,6 +39,11 @@ func WithProfile(profile string) oci.SpecOpts {
+ 
+ // WithDefaultProfile will generate a default apparmor profile under the provided name
+ // for the container.  It is only generated if a profile under that name does not exist.
++//
++// FIXME: pkg/cri/[sb]server/container_create_linux_test.go depends on go:noinline
++// since Go 1.21.
++//
++//go:noinline
+ func WithDefaultProfile(name string) oci.SpecOpts {
+ 	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *specs.Spec) error {
+ 		if err := LoadDefaultProfile(name); err != nil {
+diff --git a/contrib/seccomp/seccomp.go b/contrib/seccomp/seccomp.go
+index 5292cbc..becf089 100644
+--- a/contrib/seccomp/seccomp.go
++++ b/contrib/seccomp/seccomp.go
+@@ -30,6 +30,11 @@ import (
+ // WithProfile receives the name of a file stored on disk comprising a json
+ // formatted seccomp profile, as specified by the opencontainers/runtime-spec.
+ // The profile is read from the file, unmarshaled, and set to the spec.
++//
++// FIXME: pkg/cri/[sb]server/container_create_linux_test.go depends on go:noinline
++// since Go 1.21.
++//
++//go:noinline
+ func WithProfile(profile string) oci.SpecOpts {
+ 	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *specs.Spec) error {
+ 		s.Linux.Seccomp = &specs.LinuxSeccomp{}
+@@ -46,6 +51,11 @@ func WithProfile(profile string) oci.SpecOpts {
+ 
+ // WithDefaultProfile sets the default seccomp profile to the spec.
+ // Note: must follow the setting of process capabilities
++//
++// FIXME: pkg/cri/[sb]server/container_create_linux_test.go depends on go:noinline
++// since Go 1.21.
++//
++//go:noinline
+ func WithDefaultProfile() oci.SpecOpts {
+ 	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *specs.Spec) error {
+ 		s.Linux.Seccomp = DefaultProfile(s)
