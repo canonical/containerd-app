@@ -1,6 +1,4 @@
 0001-Skip-test-failing-on-riscv64.patch
 0002-Skip-tests-which-require-a-certain-level-of-privileg.patch
 0003-Preserve-debug-info.patch
-0004-disable-windows-support-in-ctr-metric.patch
-0005-Revert-Use-insecure.NewCredentials-instead-of-grpc.W.patch
 0006-Skip-test-setting-OOM-score-to-negative-number-in-un.patch
