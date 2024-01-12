@@ -22,8 +22,6 @@ execute_before_dh_gencontrol:
 	DH_GOLANG_BUILDPKG=' \
 		-tags "$(TAGS)" \
 		github.com/containerd/containerd/cmd/containerd \
-		github.com/containerd/containerd/cmd/containerd-shim \
-		github.com/containerd/containerd/cmd/containerd-shim-runc-v1 \
 		github.com/containerd/containerd/cmd/containerd-shim-runc-v2 \
 		github.com/containerd/containerd/cmd/containerd-stress \
 		github.com/containerd/containerd/cmd/ctr \
