@@ -1,4 +1,4 @@
-containerd-app (1.7.12-0ubuntu1) UNRELEASED; urgency=medium
+containerd-app (1.7.12-0ubuntu1) noble; urgency=medium
 
   * New upstream release.
   * Build with Go 1.20.
