@@ -1,3 +1,9 @@
+containerd-app (1.7.12-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Mon, 15 Jan 2024 18:21:59 -0300
+
 containerd-app (1.7.2-0ubuntu2) mantic; urgency=medium
 
   * Drop patches for -dev packages
