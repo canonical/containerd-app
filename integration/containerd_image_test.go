@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	goruntime "runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/integration/images"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/pkg/cri/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -45,7 +48,8 @@ func TestContainerdImage(t *testing.T) {
 	}
 
 	t.Logf("pull the image into containerd")
-	_, err = containerdClient.Pull(ctx, testImage, containerd.WithPullUnpack, containerd.WithPullLabel("foo", "bar"))
+	lbs := map[string]string{"foo": "bar", labels.PinnedImageLabelKey: labels.PinnedImageLabelValue}
+	_, err = containerdClient.Pull(ctx, testImage, containerd.WithPullUnpack, containerd.WithPullLabels(lbs))
 	assert.NoError(t, err)
 	defer func() {
 		// Make sure the image is cleaned up in any case.
@@ -126,6 +130,13 @@ func TestContainerdImage(t *testing.T) {
 	img, err := containerdClient.GetImage(ctx, testImage)
 	assert.NoError(t, err)
 	assert.Equal(t, img.Labels()["foo"], "bar")
+	assert.Equal(t, img.Labels()[labels.ImageLabelKey], labels.ImageLabelValue)
+
+	t.Logf("the image should be pinned")
+	i, err = imageService.ImageStatus(&runtime.ImageSpec{Image: testImage})
+	require.NoError(t, err)
+	require.NotNil(t, i)
+	assert.True(t, i.Pinned)
 
 	t.Logf("should be able to start container with the image")
 	sb, sbConfig := PodSandboxConfigWithCleanup(t, "sandbox", "containerd-image")
@@ -206,4 +217,60 @@ func TestContainerdImageInOtherNamespaces(t *testing.T) {
 		return img != nil, nil
 	}
 	assert.NoError(t, Consistently(checkImage, 100*time.Millisecond, time.Second))
+}
+
+func TestContainerdSandboxImage(t *testing.T) {
+	var pauseImage = images.Get(images.Pause)
+	ctx := context.Background()
+
+	t.Log("make sure the pause image exist")
+	pauseImg, err := containerdClient.GetImage(ctx, pauseImage)
+	require.NoError(t, err)
+	t.Log("ensure correct labels are set on pause image")
+	assert.Equal(t, pauseImg.Labels()["io.cri-containerd.pinned"], "pinned")
+
+	t.Log("pause image should be seen by cri plugin")
+	pimg, err := imageService.ImageStatus(&runtime.ImageSpec{Image: pauseImage})
+	require.NoError(t, err)
+	require.NotNil(t, pimg)
+	t.Log("verify pinned field is set for pause image")
+	assert.True(t, pimg.Pinned)
+}
+
+func TestContainerdImageWithDockerSchema1(t *testing.T) {
+	if goruntime.GOOS == "windows" {
+		t.Skip("Skipped on Windows because the test image is not a multi-platform one.")
+	}
+
+	var testImage = images.Get(images.DockerSchema1)
+	digest := strings.Split(testImage, "@")[1]
+	ctx := context.Background()
+
+	t.Logf("make sure the test image doesn't exist in the cri plugin")
+	i, err := imageService.ImageStatus(&runtime.ImageSpec{Image: testImage})
+	require.NoError(t, err)
+	if i != nil {
+		require.NoError(t, imageService.RemoveImage(&runtime.ImageSpec{Image: testImage}))
+	}
+
+	t.Logf("pull the image into containerd")
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
+	_, err = containerdClient.Pull(ctx, testImage, containerd.WithPullUnpack, containerd.WithSchema1Conversion)
+	require.NoError(t, err)
+	defer func() {
+		// Make sure the image is cleaned up in any case.
+		if err := containerdClient.ImageService().Delete(ctx, testImage); err != nil {
+			assert.True(t, errdefs.IsNotFound(err), err)
+		}
+		assert.NoError(t, imageService.RemoveImage(&runtime.ImageSpec{Image: testImage}))
+	}()
+
+	imgByRef, err := containerdClient.GetImage(ctx, testImage)
+	require.NoError(t, err)
+
+	t.Logf("the image should be marked as managed")
+	assert.Equal(t, "managed", imgByRef.Labels()["io.cri-containerd.image"])
+
+	t.Logf("the image should be marked as dokcker schema1 with its original digest")
+	assert.Equal(t, digest, imgByRef.Labels()["io.containerd.image/converted-docker-schema1"])
 }
