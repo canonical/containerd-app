@@ -1,4 +1,4 @@
-containerd-app (1.7.12-0ubuntu2) UNRELEASED; urgency=medium
+containerd-app (1.7.12-0ubuntu2) noble; urgency=medium
 
   * Build with Go 1.21 (LP: #2056154)
     - d/control: b-d on golang-1.21-go instead of golang-1.20-go
