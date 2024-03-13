@@ -5,7 +5,6 @@ docs/*.png
 NOTICE
 vendor/github.com/Microsoft/hcsshim/pkg/go-runhcs/NOTICE
 vendor/github.com/docker/go-metrics/NOTICE
-vendor/github.com/opencontainers/runc/NOTICE
 vendor/github.com/prometheus/client_golang/NOTICE
 vendor/google.golang.org/grpc/NOTICE.txt
 vendor/gopkg.in/yaml.v2/NOTICE

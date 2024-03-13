@@ -1,3 +1,33 @@
+containerd-app (1.7.12-0ubuntu2) noble; urgency=medium
+
+  * Build with Go 1.21 (LP: #2056154)
+    - d/control: b-d on golang-1.21-go instead of golang-1.20-go
+    - d/rules: add Go 1.21 to $PATH
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Tue, 12 Mar 2024 11:46:44 -0300
+
+containerd-app (1.7.12-0ubuntu1) noble; urgency=medium
+
+  * New upstream release.
+  * Build with Go 1.20.
+  * d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch:
+    refresh.
+  * d/containerd.docs: remove NOTICE from vendored runc.
+  * d/rules: fix path of the containerd systemd service file.
+  * d/rules: do no pass removed commands to dh_golang before dh_gencontrol.
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Mon, 15 Jan 2024 18:39:58 -0300
+
+containerd-app (1.7.2-0ubuntu2) mantic; urgency=medium
+
+  * Drop patches for -dev packages
+    + 0004-disable-windows-support-in-ctr-metric.patch
+    + 0005-Revert-Use-insecure.NewCredentials-instead-of-grpc.W.patch
+  * Backport patch for Go1.21 (LP: #2032754)
+    + 0007-seccomp-apparmor-add-go-noinline.patch
+
+ -- Shengjing Zhu <shengjing.zhu@canonical.com>  Wed, 23 Aug 2023 15:04:29 +0800
+
 containerd-app (1.7.2-0ubuntu1~22.04.1) jammy; urgency=medium
 
   * Backport version from Mantic to Jammy (LP: #2023694, #2022390).
