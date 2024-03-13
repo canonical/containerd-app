@@ -1,3 +1,10 @@
+containerd-app (1.7.12-0ubuntu2~20.04.1) focal; urgency=medium
+
+  * Backport version from Noble to Focal (LP: #2040460).
+    - d/rules: fix containerd.service path, it is not in /usr but in /lib.
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Wed, 13 Mar 2024 17:36:08 -0300
+
 containerd-app (1.7.12-0ubuntu2) noble; urgency=medium
 
   * Build with Go 1.21 (LP: #2056154)
