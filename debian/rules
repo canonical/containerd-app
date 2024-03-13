@@ -14,16 +14,14 @@ export GOCACHE := $(CURDIR)/.gocache
 # https://blog.golang.org/go116-module-changes (TODO figure out a new solution for Go 1.17+)
 export GO111MODULE := auto
 
-# Build with Golang 1.20
-export PATH := /usr/lib/go-1.20/bin:$(PATH)
+# Build with Golang 1.21
+export PATH := /usr/lib/go-1.21/bin:$(PATH)
 
 execute_before_dh_gencontrol:
 	# use "dh_golang" to generate "misc:Built-Using" (via "go list")
 	DH_GOLANG_BUILDPKG=' \
 		-tags "$(TAGS)" \
 		github.com/containerd/containerd/cmd/containerd \
-		github.com/containerd/containerd/cmd/containerd-shim \
-		github.com/containerd/containerd/cmd/containerd-shim-runc-v1 \
 		github.com/containerd/containerd/cmd/containerd-shim-runc-v2 \
 		github.com/containerd/containerd/cmd/containerd-stress \
 		github.com/containerd/containerd/cmd/ctr \
@@ -61,9 +59,9 @@ override_dh_auto_install:
 
 execute_after_dh_installsystemd:
 	# replace "/usr/local/bin/containerd" with "/usr/bin/containerd" in our systemd service file
-	grep '/usr/local/bin/containerd' debian/*/lib/systemd/system/containerd.service \
-		&& sed -i 's!/usr/local/bin/containerd!/usr/bin/containerd!g' debian/*/lib/systemd/system/containerd.service \
-		&& ! grep '/usr/local/bin/containerd' debian/*/lib/systemd/system/containerd.service
+	grep '/usr/local/bin/containerd' debian/containerd/usr/lib/systemd/system/containerd.service \
+		&& sed -i 's!/usr/local/bin/containerd!/usr/bin/containerd!g' debian/containerd/usr/lib/systemd/system/containerd.service \
+		&& ! grep '/usr/local/bin/containerd' debian/containerd/usr/lib/systemd/system/containerd.service
 
 override_dh_dwz:
 	# do not call dh_dwz to avoid "dwz: Too few files for multifile optimization"

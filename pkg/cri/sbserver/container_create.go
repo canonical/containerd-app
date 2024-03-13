@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/containerd/typeurl/v2"
@@ -148,10 +149,15 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		}
 	}()
 
+	platform, err := controller.Platform(ctx, sandboxID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sandbox platform: %w", err)
+	}
+
 	var volumeMounts []*runtime.Mount
 	if !c.config.IgnoreImageDefinedVolumes {
 		// Create container image volumes mounts.
-		volumeMounts = c.volumeMounts(containerRootDir, config.GetMounts(), &image.ImageSpec.Config)
+		volumeMounts = c.volumeMounts(platform, containerRootDir, config.GetMounts(), &image.ImageSpec.Config)
 	} else if len(image.ImageSpec.Config.Volumes) != 0 {
 		log.G(ctx).Debugf("Ignoring volumes defined in image %v because IgnoreImageDefinedVolumes is set", image.ID)
 	}
@@ -161,11 +167,6 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		return nil, fmt.Errorf("failed to get sandbox runtime: %w", err)
 	}
 	log.G(ctx).Debugf("Use OCI runtime %+v for sandbox %q and container %q", ociRuntime, sandboxID, id)
-
-	platform, err := controller.Platform(ctx, sandboxID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query sandbox platform: %w", err)
-	}
 
 	spec, err := c.buildContainerSpec(
 		platform,
@@ -251,7 +252,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		}
 	}()
 
-	specOpts, err := c.containerSpecOpts(config, &image.ImageSpec.Config)
+	specOpts, err := c.platformSpecOpts(platform, config, &image.ImageSpec.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container spec opts: %w", err)
 	}
@@ -337,7 +338,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 // volumeMounts sets up image volumes for container. Rely on the removal of container
 // root directory to do cleanup. Note that image volume will be skipped, if there is criMounts
 // specified with the same destination.
-func (c *criService) volumeMounts(containerRootDir string, criMounts []*runtime.Mount, config *imagespec.ImageConfig) []*runtime.Mount {
+func (c *criService) volumeMounts(platform platforms.Platform, containerRootDir string, criMounts []*runtime.Mount, config *imagespec.ImageConfig) []*runtime.Mount {
 	if len(config.Volumes) == 0 {
 		return nil
 	}
@@ -352,6 +353,16 @@ func (c *criService) volumeMounts(containerRootDir string, criMounts []*runtime.
 		}
 		volumeID := util.GenerateID()
 		src := filepath.Join(containerRootDir, "volumes", volumeID)
+		// When the platform OS is Linux, ensure dst is a _Linux_ abs path.
+		// We can't use filepath.IsAbs() because, when executing on Windows, it checks for
+		// Windows abs paths.
+		if platform.OS == "linux" && !strings.HasPrefix(dst, "/") {
+			// On Windows, ToSlash() is needed to ensure the path is a valid Linux path.
+			// On Linux, ToSlash() is a no-op.
+			oldDst := dst
+			dst = filepath.ToSlash(filepath.Join("/", dst))
+			log.L.Debugf("Volume destination %q is not absolute, converted to %q", oldDst, dst)
+		}
 		// addOCIBindMounts will create these volumes.
 		mounts = append(mounts, &runtime.Mount{
 			ContainerPath:  dst,
@@ -414,6 +425,93 @@ const (
 	// hostnameEnv is the key for HOSTNAME env.
 	hostnameEnv = "HOSTNAME"
 )
+
+// generateUserString generates valid user string based on OCI Image Spec
+// v1.0.0.
+//
+// CRI defines that the following combinations are valid:
+//
+// (none) -> ""
+// username -> username
+// username, uid -> username
+// username, uid, gid -> username:gid
+// username, gid -> username:gid
+// uid -> uid
+// uid, gid -> uid:gid
+// gid -> error
+//
+// TODO(random-liu): Add group name support in CRI.
+func generateUserString(username string, uid, gid *runtime.Int64Value) (string, error) {
+	var userstr, groupstr string
+	if uid != nil {
+		userstr = strconv.FormatInt(uid.GetValue(), 10)
+	}
+	if username != "" {
+		userstr = username
+	}
+	if gid != nil {
+		groupstr = strconv.FormatInt(gid.GetValue(), 10)
+	}
+	if userstr == "" {
+		if groupstr != "" {
+			return "", fmt.Errorf("user group %q is specified without user", groupstr)
+		}
+		return "", nil
+	}
+	if groupstr != "" {
+		userstr = userstr + ":" + groupstr
+	}
+	return userstr, nil
+}
+
+// platformSpecOpts adds additional runtime spec options that may rely on
+// runtime information (rootfs mounted), or platform specific checks with
+// no defined workaround (yet) to specify for other platforms.
+func (c *criService) platformSpecOpts(
+	platform platforms.Platform,
+	config *runtime.ContainerConfig,
+	imageConfig *imagespec.ImageConfig,
+) ([]oci.SpecOpts, error) {
+	var specOpts []oci.SpecOpts
+
+	// First deal with the set of options we can use across platforms currently.
+	// Linux user strings have workarounds on other platforms to avoid needing to
+	// mount the rootfs, but on Linux hosts it must be mounted
+	//
+	// TODO(dcantah): I think the seccomp package can be made to compile on
+	// !linux and used here as well.
+	if platform.OS == "linux" {
+		// Set container username. This could only be done by containerd, because it needs
+		// access to the container rootfs. Pass user name to containerd, and let it overwrite
+		// the spec for us.
+		securityContext := config.GetLinux().GetSecurityContext()
+		userstr, err := generateUserString(
+			securityContext.GetRunAsUsername(),
+			securityContext.GetRunAsUser(),
+			securityContext.GetRunAsGroup())
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate user string: %w", err)
+		}
+		if userstr == "" {
+			// Lastly, since no user override was passed via CRI try to set via OCI
+			// Image
+			userstr = imageConfig.User
+		}
+		if userstr != "" {
+			specOpts = append(specOpts, oci.WithUser(userstr))
+		}
+	}
+
+	// Now grab the truly platform specific options (seccomp, apparmor etc. for linux
+	// for example).
+	ctrSpecOpts, err := c.containerSpecOpts(config, imageConfig)
+	if err != nil {
+		return nil, err
+	}
+	specOpts = append(specOpts, ctrSpecOpts...)
+
+	return specOpts, nil
+}
 
 // buildContainerSpec build container's OCI spec depending on controller's target platform OS.
 func (c *criService) buildContainerSpec(
