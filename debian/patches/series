@@ -1,5 +1,3 @@
 0001-Skip-test-failing-on-riscv64.patch
 0002-Skip-tests-which-require-a-certain-level-of-privileg.patch
 0003-Preserve-debug-info.patch
-0006-Skip-test-setting-OOM-score-to-negative-number-in-un.patch
-0007-seccomp-apparmor-add-go-noinline.patch
