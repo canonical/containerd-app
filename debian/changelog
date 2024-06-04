@@ -1,4 +1,4 @@
-containerd-app (1.7.17-0ubuntu1) UNRELEASED; urgency=medium
+containerd-app (1.7.17-0ubuntu1) oracular; urgency=medium
 
   * New upstream release.
     - Update AppArmor template to allow confined runc to kill containers
