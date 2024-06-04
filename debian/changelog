@@ -3,8 +3,14 @@ containerd-app (1.7.17-0ubuntu1) UNRELEASED; urgency=medium
   * New upstream release.
     - Update AppArmor template to allow confined runc to kill containers
       (LP: #2065423).
+  * Refresh patches.
+    - d/p/{0006-Skip-test-setting-OOM-score-to-negative-number-in-un,
+      0007-seccomp-apparmor-add-go-noinline}.patch: removed, applied by
+      upstream.
+  * d/rules: skip cri server tests.
+  * d/rules: fix path of containerd commands.
 
- -- Lucas Kanashiro <kanashiro@ubuntu.com>  Tue, 04 Jun 2024 16:36:53 -0300
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Tue, 04 Jun 2024 17:24:22 -0300
 
 containerd-app (1.7.12-0ubuntu4) noble; urgency=medium
 
