@@ -17,6 +17,8 @@ export GO111MODULE := auto
 # Build with Golang 1.22
 export PATH := /usr/lib/go-1.22/bin:$(PATH)
 
+export SKIP := github.com/containerd/containerd/v2/pkg/cri/server
+
 execute_before_dh_gencontrol:
 	# use "dh_golang" to generate "misc:Built-Using" (via "go list")
 	DH_GOLANG_BUILDPKG=' \
