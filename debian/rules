@@ -23,10 +23,10 @@ execute_before_dh_gencontrol:
 	# use "dh_golang" to generate "misc:Built-Using" (via "go list")
 	DH_GOLANG_BUILDPKG=' \
 		-tags "$(TAGS)" \
-		github.com/containerd/containerd/cmd/containerd \
-		github.com/containerd/containerd/cmd/containerd-shim-runc-v2 \
-		github.com/containerd/containerd/cmd/containerd-stress \
-		github.com/containerd/containerd/cmd/ctr \
+		github.com/containerd/containerd/v2/cmd/containerd \
+		github.com/containerd/containerd/v2/cmd/containerd-shim-runc-v2 \
+		github.com/containerd/containerd/v2/cmd/containerd-stress \
+		github.com/containerd/containerd/v2/cmd/ctr \
 	' dh_golang --builddirectory='$(OUR_GOPATH:$(CURDIR)/%=%)'
 
 override_dh_auto_configure:
