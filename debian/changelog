@@ -1,6 +1,7 @@
-containerd-app (1.7.19-0ubuntu1) UNRELEASED; urgency=medium
+containerd-app (1.7.19-0ubuntu1) oracular; urgency=medium
 
   * New upstream release.
+  * d/t/basic-smoke: set proxy environment variables.
 
  -- Lucas Kanashiro <kanashiro@ubuntu.com>  Wed, 03 Jul 2024 18:52:03 -0300
 
