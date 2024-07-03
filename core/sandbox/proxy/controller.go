@@ -18,13 +18,14 @@ package proxy
 
 import (
 	"context"
+	"time"
 
 	api "github.com/containerd/containerd/api/services/sandbox/v1"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/containerd/v2/core/sandbox"
 	"github.com/containerd/errdefs"
-	"github.com/containerd/platforms"
+	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -78,14 +79,14 @@ func (s *remoteSandboxController) Start(ctx context.Context, sandboxID string) (
 	}, nil
 }
 
-func (s *remoteSandboxController) Platform(ctx context.Context, sandboxID string) (platforms.Platform, error) {
+func (s *remoteSandboxController) Platform(ctx context.Context, sandboxID string) (imagespec.Platform, error) {
 	resp, err := s.client.Platform(ctx, &api.ControllerPlatformRequest{SandboxID: sandboxID})
 	if err != nil {
-		return platforms.Platform{}, errdefs.FromGRPC(err)
+		return imagespec.Platform{}, errdefs.FromGRPC(err)
 	}
 
 	platform := resp.GetPlatform()
-	return platforms.Platform{
+	return imagespec.Platform{
 		Architecture: platform.GetArchitecture(),
 		OS:           platform.GetOS(),
 		Variant:      platform.GetVariant(),
@@ -119,9 +120,31 @@ func (s *remoteSandboxController) Shutdown(ctx context.Context, sandboxID string
 }
 
 func (s *remoteSandboxController) Wait(ctx context.Context, sandboxID string) (sandbox.ExitStatus, error) {
-	resp, err := s.client.Wait(ctx, &api.ControllerWaitRequest{SandboxID: sandboxID})
-	if err != nil {
-		return sandbox.ExitStatus{}, errdefs.FromGRPC(err)
+	// For remote sandbox controllers, the controller process may restart,
+	// we have to retry if the error indicates that it is the grpc disconnection.
+	var (
+		resp          *api.ControllerWaitResponse
+		err           error
+		retryInterval time.Duration = 128
+	)
+	for {
+		resp, err = s.client.Wait(ctx, &api.ControllerWaitRequest{SandboxID: sandboxID})
+		if err != nil {
+			grpcErr := errdefs.FromGRPC(err)
+			if !errdefs.IsUnavailable(grpcErr) {
+				return sandbox.ExitStatus{}, grpcErr
+			}
+			select {
+			case <-time.After(retryInterval * time.Millisecond):
+				if retryInterval < 4096 {
+					retryInterval = retryInterval << 1
+				}
+				continue
+			case <-ctx.Done():
+				return sandbox.ExitStatus{}, grpcErr
+			}
+		}
+		break
 	}
 
 	return sandbox.ExitStatus{

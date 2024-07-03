@@ -13,7 +13,7 @@ on:
 name: Release
 
 env:
-  GO_VERSION: "1.22.3"
+  GO_VERSION: "1.22.4"
 
 permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -156,3 +156,4 @@ jobs:
           body_path: ./builds/containerd-release-notes/release-notes.md
           files: |
             builds/release-tars-**/*
+          make_latest: false
