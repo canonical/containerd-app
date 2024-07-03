@@ -100,6 +100,15 @@ command. As part of this process, we do the following:
 		defer cancel()
 
 		if !context.Bool("local") {
+			unsupportedFlags := []string{"max-concurrent-downloads", "print-chainid",
+				"skip-verify", "tlscacert", "tlscert", "tlskey", "http-dump", "http-trace", // RegistryFlags
+			}
+			for _, s := range unsupportedFlags {
+				if context.IsSet(s) {
+					return fmt.Errorf("\"--%s\" requires \"--local\" flag", s)
+				}
+			}
+
 			ch, err := commands.NewStaticCredentials(ctx, context, ref)
 			if err != nil {
 				return err
@@ -131,6 +140,10 @@ command. As part of this process, we do the following:
 				// config.PlatformMatcher = platforms.Any()
 			} else if !context.Bool("skip-metadata") {
 				sopts = append(sopts, image.WithAllMetadata)
+			}
+			labels := context.StringSlice("label")
+			if len(labels) > 0 {
+				sopts = append(sopts, image.WithImageLabels(commands.LabelArgs(labels)))
 			}
 
 			opts := []registry.Opt{registry.WithCredentials(ch), registry.WithHostDir(context.String("hosts-dir"))}

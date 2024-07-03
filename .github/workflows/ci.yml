@@ -33,7 +33,7 @@ jobs:
       - uses: ./.github/actions/install-go
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.58.0
+          version: v1.59.1
           skip-cache: true
           args: --timeout=8m
 
@@ -191,7 +191,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, actuated-arm64-4cpu-16gb, macos-12, windows-2019, windows-2022]
-        go-version: ["1.22.3"]
+        go-version: ["1.22.4"]
         exclude:
           - os: ${{ github.repository != 'containerd/containerd' && 'actuated-arm64-4cpu-16gb' }}
     steps:
@@ -528,7 +528,12 @@ jobs:
       matrix:
         box:
           - fedora/39-cloud-base
-          - rockylinux/8@9.0.0
+          # We have to keep EL8 to test old glibc, cgroup, kernel, etc.
+          # The image was changed from rockylinux/8 to almalinux/8,
+          # as the former one no longer works:
+          # https://github.com/containerd/containerd/pull/10297
+          - almalinux/8
+          - rockylinux/9@4.0.0
     env:
       BOX: ${{ matrix.box }}
 

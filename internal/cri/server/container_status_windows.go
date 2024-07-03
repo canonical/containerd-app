@@ -14,11 +14,15 @@
    limitations under the License.
 */
 
-package seed
+package server
 
-import "golang.org/x/sys/unix"
+import (
+	"context"
 
-func tryReadRandom(p []byte) {
-	// Ignore errors, just decreases uniqueness of seed
-	unix.Getrandom(p, unix.GRND_NONBLOCK)
+	containerstore "github.com/containerd/containerd/v2/internal/cri/store/container"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
+)
+
+func toCRIContainerUser(ctx context.Context, container containerstore.Container) (*runtime.ContainerUser, error) {
+	return &runtime.ContainerUser{}, nil
 }

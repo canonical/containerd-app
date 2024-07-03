@@ -153,7 +153,7 @@ version = 2
   selinux_category_range = 1024
 
   # sandbox_image is the image used by sandbox container.
-  sandbox_image = "registry.k8s.io/pause:3.9"
+  sandbox_image = "registry.k8s.io/pause:3.10"
 
   # stats_collect_period is the period (in seconds) of snapshots stats collection.
   stats_collect_period = 10
@@ -443,6 +443,8 @@ version = 2
     # * ipv6 - select the first ipv6 address
     # * cni - use the order returned by the CNI plugins, returning the first IP address from the results
     ip_pref = "ipv4"
+    # use_internal_loopback specifies if we use the CNI loopback plugin or internal mechanism to set lo to up
+    use_internal_loopback = false
 
   # 'plugins."io.containerd.grpc.v1.cri".image_decryption' contains config related
   # to handling decryption of encrypted container images.

@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !windows
 
 /*
    Copyright The containerd Authors.
@@ -16,13 +16,13 @@
    limitations under the License.
 */
 
-package seed
+package docker
 
 import (
-	"crypto/rand"
-	"io"
+	"errors"
+	"syscall"
 )
 
-func tryReadRandom(p []byte) {
-	io.ReadFull(rand.Reader, p)
+func isConnError(err error) bool {
+	return errors.Is(err, syscall.ECONNREFUSED)
 }

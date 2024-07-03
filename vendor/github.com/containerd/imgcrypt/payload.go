@@ -14,30 +14,31 @@
    limitations under the License.
 */
 
-// Package seed provides an initializer for the global [math/rand] seed.
-//
-// Deprecated: Do not rely on the global seed.
-package seed
+package imgcrypt
 
 import (
-	"math/rand"
-	"time"
+	"github.com/containerd/typeurl/v2"
+
+	encconfig "github.com/containers/ocicrypt/config"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// WithTimeAndRand seeds the global math rand generator with nanoseconds
-// XOR'ed with a crypto component if available for uniqueness.
-//
-// Deprecated: Do not rely on the global seed.
-func WithTimeAndRand() {
-	var (
-		b [4]byte
-		u int64
-	)
+const (
+	PayloadURI = "io.containerd.ocicrypt.v1.Payload"
+)
 
-	tryReadRandom(b[:])
+var PayloadToolIDs = []string{
+	"io.containerd.ocicrypt.decoder.v1.tar",
+	"io.containerd.ocicrypt.decoder.v1.tar.gzip",
+}
 
-	// Set higher 32 bits, bottom 32 will be set with nanos
-	u |= (int64(b[0]) << 56) | (int64(b[1]) << 48) | (int64(b[2]) << 40) | (int64(b[3]) << 32)
+func init() {
+	typeurl.Register(&Payload{}, PayloadURI)
+}
 
-	rand.Seed(u ^ time.Now().UnixNano())
+// Payload holds data that the external layer decryption tool
+// needs for decrypting a layer
+type Payload struct {
+	DecryptConfig encconfig.DecryptConfig
+	Descriptor    ocispec.Descriptor
 }

@@ -96,6 +96,16 @@ var pushCommand = &cli.Command{
 		defer cancel()
 
 		if !context.Bool("local") {
+			unsupportedFlags := []string{
+				"manifest", "manifest-type", "max-concurrent-uploaded-layers", "allow-non-distributable-blobs",
+				"skip-verify", "tlscacert", "tlscert", "tlskey", "http-dump", "http-trace", // RegistryFlags
+			}
+			for _, s := range unsupportedFlags {
+				if context.IsSet(s) {
+					return fmt.Errorf("\"--%s\" requires \"--local\" flag", s)
+				}
+			}
+
 			ch, err := commands.NewStaticCredentials(ctx, context, ref)
 			if err != nil {
 				return err
@@ -112,7 +122,14 @@ var pushCommand = &cli.Command{
 			if err != nil {
 				return err
 			}
-			is := image.NewStore(local)
+			var p []ocispec.Platform
+			if pss := context.StringSlice("platform"); len(pss) > 0 {
+				p, err = platforms.ParseAll(pss)
+				if err != nil {
+					return fmt.Errorf("invalid platform %v: %w", pss, err)
+				}
+			}
+			is := image.NewStore(local, image.WithPlatforms(p...))
 
 			pf, done := ProgressHandler(ctx, os.Stdout)
 			defer done()
