@@ -108,7 +108,7 @@ github.com/containerd/cgroups/v3/cgroup2/stats
 # github.com/containerd/console v1.0.4
 ## explicit; go 1.13
 github.com/containerd/console
-# github.com/containerd/containerd/api v1.8.0-rc.2
+# github.com/containerd/containerd/api v1.8.0-rc.3
 ## explicit; go 1.21
 github.com/containerd/containerd/api/events
 github.com/containerd/containerd/api/runtime/sandbox/v1
@@ -185,7 +185,7 @@ github.com/containerd/platforms
 github.com/containerd/plugin
 github.com/containerd/plugin/dynamic
 github.com/containerd/plugin/registry
-# github.com/containerd/ttrpc v1.2.4
+# github.com/containerd/ttrpc v1.2.5
 ## explicit; go 1.19
 github.com/containerd/ttrpc
 # github.com/containerd/typeurl/v2 v2.1.1

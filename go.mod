@@ -13,7 +13,7 @@ require (
 	github.com/containerd/btrfs/v2 v2.0.0
 	github.com/containerd/cgroups/v3 v3.0.3
 	github.com/containerd/console v1.0.4
-	github.com/containerd/containerd/api v1.8.0-rc.2
+	github.com/containerd/containerd/api v1.8.0-rc.3
 	github.com/containerd/continuity v0.4.3
 	github.com/containerd/errdefs v0.1.0
 	github.com/containerd/fifo v1.1.0
@@ -24,7 +24,7 @@ require (
 	github.com/containerd/nri v0.6.1
 	github.com/containerd/platforms v0.2.1
 	github.com/containerd/plugin v0.1.0
-	github.com/containerd/ttrpc v1.2.4
+	github.com/containerd/ttrpc v1.2.5
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/containernetworking/cni v1.2.0
 	github.com/containernetworking/plugins v1.4.1
