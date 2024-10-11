@@ -32,6 +32,22 @@ cgroupDriver: "systemd"
 
 kubeadm users should also see [the kubeadm documentation](https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/).
 
+> Note: Kubernetes v1.28 supports automatic detection of the cgroup driver as
+> an alpha feature. With the `KubeletCgroupDriverFromCRI` kubelet feature gate
+> enabled, the kubelet automatically detects the cgroup driver from the CRI
+> runtime and the `KubeletConfiguration` configuration step above is not
+> needed.
+>
+> When determining the cgroup driver, containerd uses the `SystemdCgroup`
+> setting from runc-based runtime classes, starting from the default runtime
+> class. If no runc-based runtime classes have been configured containerd
+> relies on auto-detection based on determining if systemd is running.
+> Note that all runc-based runtime classes should be configured to have the
+> same `SystemdCgroup` setting in order to avoid unexpected behavior.
+>
+> The automatic cgroup driver configuration for kubelet feature is supported in
+> containerd v2.0 and later.
+
 ### Snapshotter
 
 The default snapshotter is set to `overlayfs` (akin to Docker's `overlay2` storage driver):
@@ -137,7 +153,7 @@ version = 2
   selinux_category_range = 1024
 
   # sandbox_image is the image used by sandbox container.
-  sandbox_image = "registry.k8s.io/pause:3.7"
+  sandbox_image = "registry.k8s.io/pause:3.10"
 
   # stats_collect_period is the period (in seconds) of snapshots stats collection.
   stats_collect_period = 10
@@ -219,12 +235,18 @@ version = 2
 
   # enable_cdi enables support of the Container Device Interface (CDI)
   # For more details about CDI and the syntax of CDI Spec files please refer to
-  # https://github.com/container-orchestrated-devices/container-device-interface.
-  enable_cdi = false
+  # https://tags.cncf.io/container-device-interface.
+  # TODO: Deprecate this option when either Dynamic Resource Allocation(DRA)
+  # or CDI support for the Device Plugins are graduated to GA.
+  # `Dynamic Resource Allocation` KEP:
+  # https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/3063-dynamic-resource-allocation
+  # `Add CDI devices to device plugin API` KEP:
+  # https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4009-add-cdi-devices-to-device-plugin-api
+  enable_cdi = true
 
   # cdi_spec_dirs is the list of directories to scan for CDI spec files
   # For more details about CDI configuration please refer to
-  # https://github.com/container-orchestrated-devices/container-device-interface#containerd-configuration
+  # https://tags.cncf.io/container-device-interface#containerd-configuration
   cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 
   # drain_exec_sync_io_timeout is the maximum duration to wait for ExecSync API'
@@ -301,7 +323,7 @@ version = 2
       #
       # For the naming convention of annotation keys, please reference:
       # * Kubernetes: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/#syntax-and-character-set
-      # * OCI: https://github.com/opencontainers/image-spec/blob/master/annotations.md
+      # * OCI: https://github.com/opencontainers/image-spec/blob/main/annotations.md
       pod_annotations = []
 
       # container_annotations is a list of container annotations passed through to the OCI config of the containers.
@@ -347,6 +369,17 @@ version = 2
       # See https://github.com/containerd/containerd/issues/6657 for context.
       snapshotter = ""
 
+      # sandboxer is the sandbox controller for the runtime.
+      # The default sandbox controller is the podsandbox controller, which create a "pause" container as a sandbox.
+      # We can create our own "shim" sandbox controller by implementing the sandbox api defined in runtime/sandbox/v1/sandbox.proto in our shim, and specifiy the sandboxer to "shim" here.
+      # We can also run a grpc or ttrpc server to serve the sandbox controller API defined in services/sandbox/v1/sandbox.proto, and define a ProxyPlugin of "sandbox" type, and specify the name of the ProxyPlugin here.
+      sandboxer = ""
+
+      # io_type is the way containerd get stdin/stdout/stderr from container or the execed process.
+      # The default value is "fifo", in which containerd will create a set of named pipes and transfer io by them.
+      # Currently the value of "streaming" is supported, in this way, sandbox should serve streaming api defined in services/streaming/v1/streaming.proto, and containerd will connect to sandbox's endpoint and create a set of streams to it, as channels to transfer io of container or process.
+      io_type = ""
+
       # 'plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options' is options specific to
       # "io.containerd.runc.v1" and "io.containerd.runc.v2". Its corresponding options type is:
       #   https://github.com/containerd/containerd/blob/v1.3.2/runtime/v2/runc/options/oci.pb.go#L26 .
@@ -371,9 +404,6 @@ version = 2
 
         # Root is the runc root directory.
         Root = ""
-
-        # CriuPath is the criu binary path.
-        CriuPath = ""
 
         # SystemdCgroup enables systemd cgroups.
         SystemdCgroup = false
@@ -413,6 +443,8 @@ version = 2
     # * ipv6 - select the first ipv6 address
     # * cni - use the order returned by the CNI plugins, returning the first IP address from the results
     ip_pref = "ipv4"
+    # use_internal_loopback specifies if we use the CNI loopback plugin or internal mechanism to set lo to up
+    use_internal_loopback = false
 
   # 'plugins."io.containerd.grpc.v1.cri".image_decryption' contains config related
   # to handling decryption of encrypted container images.

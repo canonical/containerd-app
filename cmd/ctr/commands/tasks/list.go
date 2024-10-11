@@ -22,19 +22,20 @@ import (
 	"text/tabwriter"
 
 	tasks "github.com/containerd/containerd/api/services/tasks/v1"
-	"github.com/containerd/containerd/cmd/ctr/commands"
-	"github.com/urfave/cli"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/urfave/cli/v2"
 )
 
-var listCommand = cli.Command{
+var listCommand = &cli.Command{
 	Name:      "list",
 	Usage:     "List tasks",
 	Aliases:   []string{"ls"},
 	ArgsUsage: "[flags]",
 	Flags: []cli.Flag{
-		cli.BoolFlag{
-			Name:  "quiet, q",
-			Usage: "Print only the task id",
+		&cli.BoolFlag{
+			Name:    "quiet",
+			Aliases: []string{"q"},
+			Usage:   "Print only the task id",
 		},
 	},
 	Action: func(context *cli.Context) error {

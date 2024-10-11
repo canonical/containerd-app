@@ -1,9 +1,37 @@
-containerd-app (1.7.12-0ubuntu2~20.04.1) focal; urgency=medium
+containerd-app (1.7.19-0ubuntu1) oracular; urgency=medium
 
-  * Backport version from Noble to Focal (LP: #2040460).
-    - d/rules: fix containerd.service path, it is not in /usr but in /lib.
+  * New upstream release.
+  * d/t/basic-smoke: set proxy environment variables.
 
- -- Lucas Kanashiro <kanashiro@ubuntu.com>  Wed, 13 Mar 2024 17:36:08 -0300
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Wed, 03 Jul 2024 18:52:03 -0300
+
+containerd-app (1.7.17-0ubuntu1) oracular; urgency=medium
+
+  * New upstream release.
+    - Update AppArmor template to allow confined runc to kill containers
+      (LP: #2065423).
+  * Refresh patches.
+    - d/p/{0006-Skip-test-setting-OOM-score-to-negative-number-in-un,
+      0007-seccomp-apparmor-add-go-noinline}.patch: removed, applied by
+      upstream.
+  * d/rules: skip cri server tests.
+  * d/rules: fix path of containerd commands.
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Tue, 04 Jun 2024 17:24:22 -0300
+
+containerd-app (1.7.12-0ubuntu4) noble; urgency=medium
+
+  * Build with Go 1.22.
+    - d/control: b-d on golang-1.22-go instead of golang-1.21-go
+    - d/rules: add Go 1.22 to $PATH
+
+ -- Lucas Kanashiro <kanashiro@ubuntu.com>  Wed, 17 Apr 2024 17:01:35 -0300
+
+containerd-app (1.7.12-0ubuntu3) noble; urgency=medium
+
+  * No-change rebuild for CVE-2024-3094
+
+ -- William Grant <wgrant@ubuntu.com>  Mon, 01 Apr 2024 16:39:10 +1100
 
 containerd-app (1.7.12-0ubuntu2) noble; urgency=medium
 
@@ -34,15 +62,6 @@ containerd-app (1.7.2-0ubuntu2) mantic; urgency=medium
     + 0007-seccomp-apparmor-add-go-noinline.patch
 
  -- Shengjing Zhu <shengjing.zhu@canonical.com>  Wed, 23 Aug 2023 15:04:29 +0800
-
-containerd-app (1.7.2-0ubuntu1~20.04.1) focal; urgency=medium
-
-  * Backport version from Mantic to Focal (LP: #2023694, #2022390).
-    - Build with Go 1.20
-      + d/control: b-d on golang-1.20-go instead of golang-go.
-      + d/rules: add Go 1.20 to $PATH.
-
- -- Lucas Kanashiro <kanashiro@ubuntu.com>  Thu, 29 Jun 2023 17:39:58 -0300
 
 containerd-app (1.7.2-0ubuntu1) mantic; urgency=medium
 

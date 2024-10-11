@@ -26,25 +26,25 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cmd/ctr/commands"
-	"github.com/containerd/containerd/cmd/ctr/commands/content"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/log"
-	"github.com/containerd/containerd/pkg/progress"
-	"github.com/containerd/containerd/pkg/transfer"
-	"github.com/containerd/containerd/pkg/transfer/image"
-	"github.com/containerd/containerd/pkg/transfer/registry"
-	"github.com/containerd/containerd/platforms"
-	"github.com/containerd/containerd/remotes"
-	"github.com/containerd/containerd/remotes/docker"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands/content"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/core/remotes"
+	"github.com/containerd/containerd/v2/core/remotes/docker"
+	"github.com/containerd/containerd/v2/core/transfer"
+	"github.com/containerd/containerd/v2/core/transfer/image"
+	"github.com/containerd/containerd/v2/core/transfer/registry"
+	"github.com/containerd/containerd/v2/pkg/progress"
+	"github.com/containerd/log"
+	"github.com/containerd/platforms"
 	digest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 )
 
-var pushCommand = cli.Command{
+var pushCommand = &cli.Command{
 	Name:      "push",
 	Usage:     "Push an image to a remote",
 	ArgsUsage: "[flags] <remote> [<local>]",
@@ -57,24 +57,24 @@ var pushCommand = cli.Command{
 	creating the associated configuration, and creating the manifest
 	which references those resources.
 `,
-	Flags: append(commands.RegistryFlags, cli.StringFlag{
+	Flags: append(commands.RegistryFlags, &cli.StringFlag{
 		Name:  "manifest",
 		Usage: "Digest of manifest",
-	}, cli.StringFlag{
+	}, &cli.StringFlag{
 		Name:  "manifest-type",
 		Usage: "Media type of manifest digest",
 		Value: ocispec.MediaTypeImageManifest,
-	}, cli.StringSliceFlag{
+	}, &cli.StringSliceFlag{
 		Name:  "platform",
 		Usage: "Push content from a specific platform",
-		Value: &cli.StringSlice{},
-	}, cli.IntFlag{
+		Value: cli.NewStringSlice(),
+	}, &cli.IntFlag{
 		Name:  "max-concurrent-uploaded-layers",
 		Usage: "Set the max concurrent uploaded layers for each push",
-	}, cli.BoolTFlag{
+	}, &cli.BoolFlag{
 		Name:  "local",
 		Usage: "Push content from local client rather than using transfer service",
-	}, cli.BoolFlag{
+	}, &cli.BoolFlag{
 		Name:  "allow-non-distributable-blobs",
 		Usage: "Allow pushing blobs that are marked as non-distributable",
 	}),
@@ -82,7 +82,7 @@ var pushCommand = cli.Command{
 		var (
 			ref   = context.Args().First()
 			local = context.Args().Get(1)
-			debug = context.GlobalBool("debug")
+			debug = context.Bool("debug")
 			desc  ocispec.Descriptor
 		)
 		if ref == "" {
@@ -95,7 +95,17 @@ var pushCommand = cli.Command{
 		}
 		defer cancel()
 
-		if !context.BoolT("local") {
+		if !context.Bool("local") {
+			unsupportedFlags := []string{
+				"manifest", "manifest-type", "max-concurrent-uploaded-layers", "allow-non-distributable-blobs",
+				"skip-verify", "tlscacert", "tlscert", "tlskey", "http-dump", "http-trace", // RegistryFlags
+			}
+			for _, s := range unsupportedFlags {
+				if context.IsSet(s) {
+					return fmt.Errorf("\"--%s\" requires \"--local\" flag", s)
+				}
+			}
+
 			ch, err := commands.NewStaticCredentials(ctx, context, ref)
 			if err != nil {
 				return err
@@ -104,8 +114,22 @@ var pushCommand = cli.Command{
 			if local == "" {
 				local = ref
 			}
-			reg := registry.NewOCIRegistry(ref, nil, ch)
-			is := image.NewStore(local)
+			opts := []registry.Opt{registry.WithCredentials(ch), registry.WithHostDir(context.String("hosts-dir"))}
+			if context.Bool("plain-http") {
+				opts = append(opts, registry.WithDefaultScheme("http"))
+			}
+			reg, err := registry.NewOCIRegistry(ctx, ref, opts...)
+			if err != nil {
+				return err
+			}
+			var p []ocispec.Platform
+			if pss := context.StringSlice("platform"); len(pss) > 0 {
+				p, err = platforms.ParseAll(pss)
+				if err != nil {
+					return fmt.Errorf("invalid platform %v: %w", pss, err)
+				}
+			}
+			is := image.NewStore(local, image.WithPlatforms(p...))
 
 			pf, done := ProgressHandler(ctx, os.Stdout)
 			defer done()

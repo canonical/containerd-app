@@ -23,25 +23,25 @@ import (
 	"os"
 	"testing"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/defaults"
-	"github.com/containerd/containerd/log/logtest"
-	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/v2/defaults"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/log/logtest"
 )
 
 const (
 	testNamespace = "testing"
 )
 
+//nolint:unused // some variables used in fuzz but not all platforms
 var (
 	address           string
 	ctrdStdioFilePath string
-	testSnapshotter   = containerd.DefaultSnapshotter
+	testSnapshotter   = defaults.DefaultSnapshotter
 	ctrd              = &daemon{}
 )
 
 func init() {
-	flag.StringVar(&address, "address", defaults.DefaultAddress, "The address to the containerd socket for use in the tests")
+	flag.StringVar(&address, "address", defaultAddress, "The address to the containerd socket for use in the tests")
 }
 
 func testContext(t testing.TB) (context.Context, context.CancelFunc) {

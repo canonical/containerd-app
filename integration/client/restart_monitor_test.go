@@ -31,16 +31,16 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/containerd/containerd"
 	eventtypes "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/oci"
-	"github.com/containerd/containerd/pkg/testutil"
-	"github.com/containerd/containerd/runtime/restart"
-	srvconfig "github.com/containerd/containerd/services/server/config"
+	. "github.com/containerd/containerd/v2/client"
+	srvconfig "github.com/containerd/containerd/v2/cmd/containerd/server/config"
+	"github.com/containerd/containerd/v2/core/runtime/restart"
+	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/containerd/v2/pkg/testutil"
 	"github.com/containerd/typeurl/v2"
+	"github.com/stretchr/testify/require"
 )
 
-//nolint:unused // Ignore on non-Linux
 func newDaemonWithConfig(t *testing.T, configTOML string) (*Client, *daemon, func()) {
 	if testing.Short() {
 		t.Skip()
@@ -59,7 +59,7 @@ func newDaemonWithConfig(t *testing.T, configTOML string) (*Client, *daemon, fun
 		t.Fatal(err)
 	}
 
-	if err := srvconfig.LoadConfig(configTOMLFile, &configTOMLDecoded); err != nil {
+	if err := srvconfig.LoadConfig(context.TODO(), configTOMLFile, &configTOMLDecoded); err != nil {
 		t.Fatal(err)
 	}
 
@@ -143,6 +143,9 @@ version = 2
 
 	t.Run("Always", func(t *testing.T) {
 		testRestartMonitorAlways(t, client, interval)
+	})
+	t.Run("Paused Task", func(t *testing.T) {
+		testRestartMonitorPausedTaskWithAlways(t, client, interval)
 	})
 	t.Run("Failure Policy", func(t *testing.T) {
 		testRestartMonitorWithOnFailurePolicy(t, client, interval)
@@ -252,6 +255,79 @@ func testRestartMonitorAlways(t *testing.T, client *Client, interval time.Durati
 		t.Fatalf("%v: the task was restarted, but it must be before %v", lastCheck, expected)
 	}
 	t.Logf("%v: the task was restarted since %v", time.Now(), lastCheck)
+}
+
+func testRestartMonitorPausedTaskWithAlways(t *testing.T, client *Client, interval time.Duration) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Pause task is not supported on Windows")
+	}
+
+	var (
+		ctx, cancel = testContext(t)
+		id          = strings.ReplaceAll(t.Name(), "/", "_")
+	)
+	defer cancel()
+
+	image, err := client.GetImage(ctx, testImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	container, err := client.NewContainer(ctx, id,
+		WithNewSnapshot(id, image),
+		WithNewSpec(
+			oci.WithImageConfig(image),
+			longCommand,
+		),
+		restart.WithStatus(Running),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := container.Delete(ctx, WithSnapshotCleanup); err != nil {
+			t.Logf("failed to delete container: %v", err)
+		}
+	}()
+
+	task, err := container.NewTask(ctx, empty())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := task.Delete(ctx, WithProcessKill); err != nil {
+			t.Logf("failed to delete task: %v", err)
+		}
+	}()
+
+	if err := task.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	statusC, err := task.Wait(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("pause the task")
+	require.NoError(t, task.Pause(ctx))
+	defer func() {
+		require.NoError(t, task.Resume(ctx))
+	}()
+
+	select {
+	case <-statusC:
+		t.Fatal("the paused task is killed")
+	case <-time.After(30 * time.Second):
+	}
+
+	status, err := task.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Status != Paused {
+		t.Fatalf("the paused task's status is changed to %s", status.Status)
+	}
 }
 
 // testRestartMonitorWithOnFailurePolicy restarts its container with `on-failure:1`

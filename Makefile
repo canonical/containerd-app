@@ -24,15 +24,17 @@ ROOTDIR=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # The files will be installed under `$(DESTDIR)/$(PREFIX)`.
 # The convention of `DESTDIR` was changed in containerd v1.6.
 PREFIX        ?= /usr/local
+BINDIR        ?= $(PREFIX)/bin
 DATADIR       ?= $(PREFIX)/share
+DOCDIR        ?= $(DATADIR)/doc
 MANDIR        ?= $(DATADIR)/man
 
 TEST_IMAGE_LIST ?=
 
 # Used to populate variables in version package.
 VERSION ?= $(shell git describe --match 'v[0-9]*' --dirty='.m' --always)
-REVISION=$(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo .m; fi)
-PACKAGE=github.com/containerd/containerd
+REVISION ?= $(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo .m; fi)
+PACKAGE=github.com/containerd/containerd/v2
 SHIM_CGO_ENABLED ?= 0
 
 ifneq "$(strip $(shell command -v $(GO) 2>/dev/null))" ""
@@ -79,7 +81,7 @@ STATICRELEASE=containerd-static-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 CRIRELEASE=cri-containerd-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 CRICNIRELEASE=cri-containerd-cni-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 
-PKG=github.com/containerd/containerd
+PKG=github.com/containerd/containerd/v2
 
 # Project binaries.
 COMMANDS=ctr containerd containerd-stress
@@ -107,7 +109,6 @@ SHIM_GO_LDFLAGS=-ldflags '-X $(PKG)/version.Version=$(VERSION) -X $(PKG)/version
 # Project packages.
 PACKAGES=$(shell $(GO) list ${GO_TAGS} ./... | grep -v /vendor/ | grep -v /integration)
 API_PACKAGES=$(shell (cd api && $(GO) list ${GO_TAGS} ./... | grep -v /vendor/ | grep -v /integration))
-NON_API_PACKAGES=$(shell $(GO) list ${GO_TAGS} ./... | grep -v /vendor/ | grep -v /integration | grep -v "containerd/api")
 TEST_REQUIRES_ROOT_PACKAGES=$(filter \
     ${PACKAGES}, \
     $(shell \
@@ -124,10 +125,10 @@ ifdef SKIPTESTS
 endif
 
 #Replaces ":" (*nix), ";" (windows) with newline for easy parsing
-GOPATHS=$(shell go env GOPATH | tr ":" "\n" | tr ";" "\n")
+GOPATHS=$(shell $(GO) env GOPATH | tr ":" "\n" | tr ";" "\n")
 
 TESTFLAGS_RACE=
-GO_BUILD_FLAGS=
+GO_BUILD_FLAGS ?=
 # See Golang issue re: '-trimpath': https://github.com/golang/go/issues/13809
 GO_GCFLAGS=$(shell				\
 	set -- ${GOPATHS};			\
@@ -149,7 +150,7 @@ GOTEST ?= $(GO) test
 OUTPUTDIR = $(join $(ROOTDIR), _output)
 CRIDIR=$(OUTPUTDIR)/cri
 
-.PHONY: clean all AUTHORS build binaries test integration generate protos check-protos coverage ci check help install uninstall vendor release static-release mandir install-man genman install-cri-deps cri-release cri-cni-release cri-integration install-deps bin/cri-integration.test
+.PHONY: clean all AUTHORS build binaries test integration generate protos check-protos coverage ci check help install uninstall vendor release static-release mandir install-man install-doc genman install-cri-deps cri-release cri-cni-release cri-integration install-deps bin/cri-integration.test remove-replace clean-vendor
 .DEFAULT: default
 
 # Forcibly set the default goal to all, in case an include above brought in a rule definition.
@@ -176,10 +177,12 @@ protos: bin/protoc-gen-go-fieldpath
 	$(eval TMPDIR := $(shell mktemp -d))
 	@mv ${ROOTDIR}/vendor ${TMPDIR}
 	@(cd ${ROOTDIR}/api && PATH="${ROOTDIR}/bin:${PATH}" protobuild --quiet ${API_PACKAGES})
-	@(PATH="${ROOTDIR}/bin:${PATH}" protobuild --quiet ${NON_API_PACKAGES})
 	@mv ${TMPDIR}/vendor ${ROOTDIR}
-	@rm -rf ${TMPDIR}
-	go-fix-acronym -w -a '(Id|Io|Uuid|Os)$$' $(shell find api/ runtime/ -name '*.pb.go')
+	@rm -rf ${TMPDIR} v2
+	go-fix-acronym -w -a '^Os' $(shell find api/ -name '*.pb.go')
+	go-fix-acronym -w -a '(Id|Io|Uuid|Os)$$' $(shell find api/ -name '*.pb.go')
+	@test -z "$$(git status --short | grep "api/next.pb.txt" | tee /dev/stderr)" || \
+		$(GO) mod edit -replace=github.com/containerd/containerd/api=./api
 
 check-protos: protos ## check if protobufs needs to be generated again
 	@echo "$(WHALE) $@"
@@ -259,14 +262,6 @@ bin/gen-manpages: cmd/gen-manpages FORCE
 	@echo "$(WHALE) $@"
 	$(GO) build ${DEBUG_GO_GCFLAGS} ${GO_GCFLAGS} ${GO_BUILD_FLAGS} -o $@ ${GO_LDFLAGS} $(subst urfave_cli_no_docs,,${GO_TAGS})  ./cmd/gen-manpages
 
-bin/containerd-shim: cmd/containerd-shim FORCE # set !cgo and omit pie for a static shim build: https://github.com/golang/go/issues/17789#issuecomment-258542220
-	@echo "$(WHALE) $@"
-	@CGO_ENABLED=${SHIM_CGO_ENABLED} $(GO) build ${GO_BUILD_FLAGS} -o $@ ${SHIM_GO_LDFLAGS} ${GO_TAGS} ./cmd/containerd-shim
-
-bin/containerd-shim-runc-v1: cmd/containerd-shim-runc-v1 FORCE # set !cgo and omit pie for a static shim build: https://github.com/golang/go/issues/17789#issuecomment-258542220
-	@echo "$(WHALE) $@"
-	@CGO_ENABLED=${SHIM_CGO_ENABLED} $(GO) build ${GO_BUILD_FLAGS} -o $@ ${SHIM_GO_LDFLAGS} ${GO_TAGS} ./cmd/containerd-shim-runc-v1
-
 bin/containerd-shim-runc-v2: cmd/containerd-shim-runc-v2 FORCE # set !cgo and omit pie for a static shim build: https://github.com/golang/go/issues/17789#issuecomment-258542220
 	@echo "$(WHALE) $@"
 	@CGO_ENABLED=${SHIM_CGO_ENABLED} $(GO) build ${GO_BUILD_FLAGS} -o $@ ${SHIM_GO_LDFLAGS} ${GO_TAGS} ./cmd/containerd-shim-runc-v2
@@ -304,6 +299,10 @@ install-man: man
 	@echo "$(WHALE) $@"
 	$(foreach manpage,$(addprefix man/,$(MANPAGES)), $(call installmanpage,$(manpage),$(subst .,,$(suffix $(manpage))),$(notdir $(manpage))))
 
+install-doc:
+	@echo "$(WHALE) $@"
+	@mkdir -p $(DESTDIR)/$(DOCDIR)/containerd
+	@cp -R docs/* $(DESTDIR)/$(DOCDIR)/containerd
 
 define pack_release
 	@rm -rf releases/$(1) releases/$(1).tar.gz
@@ -387,11 +386,11 @@ releases/$(CRICNIRELEASE).tar.gz: install-cri-deps $(CRIDIR)/cri-containerd.DEPR
 	@tar -czf releases/$(CRICNIRELEASE).tar.gz -C $(CRIDIR) cri-containerd.DEPRECATED.txt etc usr opt
 endif
 
-cri-release: releases/$(CRIRELEASE).tar.gz
+cri-release: releases/$(CRIRELEASE).tar.gz ## Deprecated (only kept for external CI)
 	@echo "$(WHALE) $@"
 	@cd releases && sha256sum $(CRIRELEASE).tar.gz >$(CRIRELEASE).tar.gz.sha256sum && ln -sf $(CRIRELEASE).tar.gz cri-containerd.tar.gz
 
-cri-cni-release: releases/$(CRICNIRELEASE).tar.gz
+cri-cni-release: releases/$(CRICNIRELEASE).tar.gz ## Deprecated (only kept for external CI)
 	@echo "$(WHALE) $@"
 	@cd releases && sha256sum $(CRICNIRELEASE).tar.gz >$(CRICNIRELEASE).tar.gz.sha256sum && ln -sf $(CRICNIRELEASE).tar.gz cri-cni-containerd.tar.gz
 
@@ -405,7 +404,7 @@ clean: ## clean up binaries
 clean-test: ## clean up debris from previously failed tests
 	@echo "$(WHALE) $@"
 	$(eval containers=$(shell find /run/containerd/runc -mindepth 2 -maxdepth 3  -type d -exec basename {} \;))
-	$(shell pidof containerd containerd-shim runc | xargs -r -n 1 kill -9)
+	$(shell pidof containerd runc | xargs -r -n 1 kill -9)
 	@( for container in $(containers); do \
 	    grep $$container /proc/self/mountinfo | while read -r mountpoint; do \
 		umount $$(echo $$mountpoint | awk '{print $$5}'); \
@@ -421,16 +420,15 @@ clean-test: ## clean up debris from previously failed tests
 
 install: ## install binaries
 	@echo "$(WHALE) $@ $(BINARIES)"
-	@$(INSTALL) -d $(DESTDIR)$(PREFIX)/bin
-	@$(INSTALL) $(BINARIES) $(DESTDIR)$(PREFIX)/bin
+	@$(INSTALL) -d $(DESTDIR)$(BINDIR)
+	@$(INSTALL) $(BINARIES) $(DESTDIR)$(BINDIR)
 
 uninstall:
 	@echo "$(WHALE) $@"
-	@rm -f $(addprefix $(DESTDIR)$(PREFIX)/bin/,$(notdir $(BINARIES)))
+	@rm -f $(addprefix $(DESTDIR)$(BINDIR)/,$(notdir $(BINARIES)))
 
 ifeq ($(GOOS),windows)
 install-deps:
-	# TODO: need a script for hcshim something like containerd/cri/hack/install/windows/install-hcsshim.sh
 	script/setup/install-critools
 	script/setup/install-cni-windows
 else
@@ -470,22 +468,29 @@ root-coverage: ## generate coverage profiles for unit tests that require root
 		fi; \
 	done )
 
+remove-replace:
+	@echo "$(WHALE) $@"
+	@$(GO) mod edit -dropreplace=github.com/containerd/containerd/api
+
 vendor: ## ensure all the go.mod/go.sum files are up-to-date including vendor/ directory
 	@echo "$(WHALE) $@"
 	@$(GO) mod tidy
 	@$(GO) mod vendor
 	@$(GO) mod verify
-	@(cd ${ROOTDIR}/integration/client && ${GO} mod tidy)
+	@(cd ${ROOTDIR}/api && ${GO} mod tidy)
 
 verify-vendor: ## verify if all the go.mod/go.sum files are up-to-date
 	@echo "$(WHALE) $@"
 	$(eval TMPDIR := $(shell mktemp -d))
 	@cp -R ${ROOTDIR} ${TMPDIR}
 	@(cd ${TMPDIR}/containerd && ${GO} mod tidy)
-	@(cd ${TMPDIR}/containerd/integration/client && ${GO} mod tidy)
+	@(cd ${TMPDIR}/containerd && ${GO} mod vendor)
+	@(cd ${TMPDIR}/containerd && ${GO} mod verify)
+	@(cd ${TMPDIR}/containerd/api && ${GO} mod tidy)
 	@diff -r -u -q ${ROOTDIR} ${TMPDIR}/containerd
 	@rm -rf ${TMPDIR}
-	@${ROOTDIR}/script/verify-go-modules.sh integration/client
+
+clean-vendor: remove-replace vendor
 
 
 help: ## this help

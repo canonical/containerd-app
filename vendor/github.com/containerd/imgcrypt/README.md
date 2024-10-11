@@ -2,7 +2,7 @@
 
 Project `imgcrypt` is a non-core subproject of containerd.
 
-The `imgcrypt` library provides API exensions for containerd to support encrypted container images and implements
+The `imgcrypt` library provides API extensions for containerd to support encrypted container images and implements
 the `ctd-decoder` command line tool for use by containerd to decrypt encrypted container images. An extended version
 of containerd's `ctr` tool (`ctr-enc`) with support for encrypting and decrypting container images is also provided.
 
@@ -25,7 +25,8 @@ installation we use /tmp for directories. Also, we build containerd 1.3 from the
 
 ```
 # cat config.toml
-disable_plugins = ["cri"]
+version = 2
+disabled_plugins = ["io.containerd.grpc.v1.cri"]
 root = "/tmp/var/lib/containerd"
 state = "/tmp/run/containerd"
 [grpc]

@@ -22,9 +22,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/sirupsen/logrus"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/errdefs"
+	"github.com/containerd/log"
 )
 
 type killer interface {
@@ -38,16 +38,16 @@ func ForwardAllSignals(ctx gocontext.Context, task killer) chan os.Signal {
 	go func() {
 		for s := range sigc {
 			if canIgnoreSignal(s) {
-				logrus.Debugf("Ignoring signal %s", s)
+				log.L.Debugf("Ignoring signal %s", s)
 				continue
 			}
-			logrus.Debug("forwarding signal ", s)
+			log.L.Debug("forwarding signal ", s)
 			if err := task.Kill(ctx, s.(syscall.Signal)); err != nil {
 				if errdefs.IsNotFound(err) {
-					logrus.WithError(err).Debugf("Not forwarding signal %s", s)
+					log.L.WithError(err).Debugf("Not forwarding signal %s", s)
 					return
 				}
-				logrus.WithError(err).Errorf("forward signal %s", s)
+				log.L.WithError(err).Errorf("forward signal %s", s)
 			}
 		}
 	}()

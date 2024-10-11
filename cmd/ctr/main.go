@@ -21,17 +21,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/containerd/containerd/cmd/ctr/app"
-	"github.com/containerd/containerd/pkg/hasher"
-	"github.com/containerd/containerd/pkg/seed" //nolint:staticcheck // Global math/rand seed is deprecated, but still used by external dependencies
-	"github.com/urfave/cli"
+	"github.com/containerd/containerd/v2/cmd/ctr/app"
+	"github.com/containerd/containerd/v2/internal/hasher"
+	"github.com/urfave/cli/v2"
 )
 
-var pluginCmds = []cli.Command{}
+var pluginCmds = []*cli.Command{}
 
 func init() {
-	//nolint:staticcheck // Global math/rand seed is deprecated, but still used by external dependencies
-	seed.WithTimeAndRand()
 	crypto.RegisterHash(crypto.SHA256, hasher.NewSHA256)
 }
 

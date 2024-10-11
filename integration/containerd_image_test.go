@@ -25,11 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/integration/images"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/pkg/cri/labels"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/integration/images"
+	"github.com/containerd/containerd/v2/internal/cri/labels"
+	"github.com/containerd/containerd/v2/pkg/deprecation"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/errdefs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -119,18 +120,18 @@ func TestContainerdImage(t *testing.T) {
 	t.Logf("the image should be marked as managed")
 	imgByRef, err := containerdClient.GetImage(ctx, testImage)
 	assert.NoError(t, err)
-	assert.Equal(t, imgByRef.Labels()["io.cri-containerd.image"], "managed")
+	assert.Equal(t, "managed", imgByRef.Labels()["io.cri-containerd.image"])
 
 	t.Logf("the image id should be created and managed")
 	imgByID, err := containerdClient.GetImage(ctx, id)
 	assert.NoError(t, err)
-	assert.Equal(t, imgByID.Labels()["io.cri-containerd.image"], "managed")
+	assert.Equal(t, "managed", imgByID.Labels()["io.cri-containerd.image"])
 
 	t.Logf("the image should be labeled")
 	img, err := containerdClient.GetImage(ctx, testImage)
 	assert.NoError(t, err)
-	assert.Equal(t, img.Labels()["foo"], "bar")
-	assert.Equal(t, img.Labels()[labels.ImageLabelKey], labels.ImageLabelValue)
+	assert.Equal(t, "bar", img.Labels()["foo"])
+	assert.Equal(t, labels.ImageLabelValue, img.Labels()[labels.ImageLabelKey])
 
 	t.Logf("the image should be pinned")
 	i, err = imageService.ImageStatus(&runtime.ImageSpec{Image: testImage})
@@ -227,7 +228,7 @@ func TestContainerdSandboxImage(t *testing.T) {
 	pauseImg, err := containerdClient.GetImage(ctx, pauseImage)
 	require.NoError(t, err)
 	t.Log("ensure correct labels are set on pause image")
-	assert.Equal(t, pauseImg.Labels()["io.cri-containerd.pinned"], "pinned")
+	assert.Equal(t, "pinned", pauseImg.Labels()["io.cri-containerd.pinned"])
 
 	t.Log("pause image should be seen by cri plugin")
 	pimg, err := imageService.ImageStatus(&runtime.ImageSpec{Image: pauseImage})
@@ -237,7 +238,37 @@ func TestContainerdSandboxImage(t *testing.T) {
 	assert.True(t, pimg.Pinned)
 }
 
+func TestContainerdSandboxImagePulledOutsideCRI(t *testing.T) {
+	var pauseImage = images.Get(images.Pause)
+	ctx := context.Background()
+
+	t.Log("make sure the pause image does not exist")
+	imageService.RemoveImage(&runtime.ImageSpec{Image: pauseImage})
+
+	t.Log("pull pause image")
+	_, err := containerdClient.Pull(ctx, pauseImage)
+	assert.NoError(t, err)
+
+	t.Log("pause image should be seen by cri plugin")
+	var pimg *runtime.Image
+	require.NoError(t, Eventually(func() (bool, error) {
+		pimg, err = imageService.ImageStatus(&runtime.ImageSpec{Image: pauseImage})
+		return pimg != nil, err
+	}, time.Second, 10*time.Second))
+
+	t.Log("verify pinned field is set for pause image")
+	assert.True(t, pimg.Pinned)
+
+	t.Log("make sure the pause image exist")
+	pauseImg, err := containerdClient.GetImage(ctx, pauseImage)
+	require.NoError(t, err)
+
+	t.Log("ensure correct labels are set on pause image")
+	assert.Equal(t, "pinned", pauseImg.Labels()["io.cri-containerd.pinned"])
+}
+
 func TestContainerdImageWithDockerSchema1(t *testing.T) {
+	t.Setenv(deprecation.EnvPullSchema1Image, "1")
 	if goruntime.GOOS == "windows" {
 		t.Skip("Skipped on Windows because the test image is not a multi-platform one.")
 	}

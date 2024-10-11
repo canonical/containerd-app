@@ -2,11 +2,11 @@ Source: containerd-app
 Section: admin
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Uploaders: Lucas Kanashiro <kanashiro@ubuntu.com>
+Uploaders: Tianon Gravi <tianon@debian.org>
 Build-Depends: debhelper-compat (= 12),
                dh-golang,
                go-md2man,
-               golang-1.21-go,
+               golang-1.22-go,
                libbtrfs-dev | btrfs-progs (<< 4.16.1~),
                libseccomp-dev,
                pkg-config
