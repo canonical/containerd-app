@@ -31,33 +31,28 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/containerd/containerd"
 	apievents "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/log/logtest"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/oci"
-	"github.com/containerd/containerd/platforms"
-	"github.com/containerd/containerd/plugin"
-	gogotypes "github.com/containerd/containerd/protobuf/types"
-	_ "github.com/containerd/containerd/runtime"
-	"github.com/containerd/containerd/runtime/v2/runc/options"
+	"github.com/containerd/containerd/api/types/runc/options"
+	. "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/images"
+	_ "github.com/containerd/containerd/v2/core/runtime"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/pkg/oci"
+	gogotypes "github.com/containerd/containerd/v2/pkg/protobuf/types"
+	"github.com/containerd/containerd/v2/plugins"
 	"github.com/containerd/continuity/fs"
+	"github.com/containerd/errdefs"
 	"github.com/containerd/go-runc"
+	"github.com/containerd/log/logtest"
+	"github.com/containerd/platforms"
 	"github.com/containerd/typeurl/v2"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
 )
 
 func empty() cio.Creator {
-	// TODO (@mlaventure) windows searches for pipes
-	// when none are provided
-	if runtime.GOOS == "windows" {
-		return cio.NewCreator(cio.WithStdio, cio.WithTerminal)
-	}
 	return cio.NullIO
 }
 
@@ -177,7 +172,7 @@ func TestContainerStart(t *testing.T) {
 }
 
 func readShimPath(taskID string) (string, error) {
-	runtime := fmt.Sprintf("%s.%s", plugin.RuntimePluginV2, "task")
+	runtime := plugins.RuntimePluginV2.String() + ".task"
 	shimBinaryNamePath := filepath.Join(defaultState, runtime, testNamespace, taskID, "shim-binary-path")
 
 	shimPath, err := os.ReadFile(shimBinaryNamePath)
@@ -212,10 +207,6 @@ func TestContainerStartWithAbsRuntimePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip("test relies on runtime v2")
-	}
 
 	var (
 		image       Image
@@ -332,7 +323,7 @@ func TestContainerOutput(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	stdout := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
+	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,12 +355,11 @@ func TestContainerOutput(t *testing.T) {
 	}
 }
 
-func withByteBuffers(stdout io.Writer) cio.Opt {
-	// TODO: could this use io.Discard?
+func withStdout(stdout io.Writer) cio.Opt {
 	return func(streams *cio.Streams) {
-		streams.Stdin = new(bytes.Buffer)
+		streams.Stdin = bytes.NewReader(nil)
 		streams.Stdout = stdout
-		streams.Stderr = new(bytes.Buffer)
+		streams.Stderr = io.Discard
 	}
 }
 
@@ -580,29 +570,44 @@ func TestContainerPids(t *testing.T) {
 	if taskPid < 1 {
 		t.Errorf("invalid task pid %d", taskPid)
 	}
+
 	processes, err := task.Pids(ctx)
-	switch runtime.GOOS {
-	case "windows":
-		// TODO: This is currently not implemented on windows
-	default:
-		if err != nil {
-			t.Fatal(err)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l := len(processes)
+	// The point of this test is to see that we successfully can get all of
+	// the pids running in the container and they match the number expected,
+	// but for Windows this concept is a bit different. Windows containers
+	// essentially go through the usermode boot phase of the operating system,
+	// and have quite a few processes and system services running outside of
+	// the "init" process you specify. Because of this, there's not a great
+	// way to say "there should only be N processes running" like we can ensure
+	// for Linux based off the process we asked to run.
+	//
+	// With all that said, on Windows lets check that we're greater than one
+	// ("init" + system services/procs)
+	if runtime.GOOS == "windows" {
+		if l <= 1 {
+			t.Errorf("expected more than one process but received %d", l)
 		}
+	} else {
 		// 2 processes, 1 for sh and one for sleep
-		if l := len(processes); l != 2 {
+		if l != 2 {
 			t.Errorf("expected 2 process but received %d", l)
 		}
+	}
 
-		var found bool
-		for _, p := range processes {
-			if p.Pid == taskPid {
-				found = true
-				break
-			}
+	var found bool
+	for _, p := range processes {
+		if p.Pid == taskPid {
+			found = true
+			break
 		}
-		if !found {
-			t.Errorf("pid %d must be in %+v", taskPid, processes)
-		}
+	}
+	if !found {
+		t.Errorf("pid %d must be in %+v", taskPid, processes)
 	}
 	if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
 		select {
@@ -790,8 +795,8 @@ func TestKillContainerDeletedByRunc(t *testing.T) {
 
 	// We skip this case when runtime is crun.
 	// More information in https://github.com/containerd/containerd/pull/4214#discussion_r422769497
-	if os.Getenv("RUNC_FLAVOR") == "crun" {
-		t.Skip("skip it when using crun")
+	if f := os.Getenv("RUNC_FLAVOR"); f != "" && f != "runc" {
+		t.Skip("test requires runc")
 	}
 
 	client, err := newClient(t, address)
@@ -799,10 +804,6 @@ func TestKillContainerDeletedByRunc(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip("test relies on runtime v2")
-	}
 
 	var (
 		image       Image
@@ -1272,7 +1273,7 @@ func TestContainerHostname(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	stdout := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
+	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1736,7 +1737,7 @@ func TestContainerHook(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		s.Hooks.Prestart = []specs.Hook{
+		s.Hooks.CreateRuntime = []specs.Hook{
 			{
 				Path: path,
 				Args: []string{
@@ -1877,7 +1878,7 @@ func TestContainerExecLargeOutputWithTTY(t *testing.T) {
 		stdout := bytes.NewBuffer(nil)
 
 		execID := t.Name() + "_exec"
-		process, err := task.Exec(ctx, execID, processSpec, cio.NewCreator(withByteBuffers(stdout), withProcessTTY()))
+		process, err := task.Exec(ctx, execID, processSpec, cio.NewCreator(withStdout(stdout), withProcessTTY()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2286,8 +2287,7 @@ func initContainerAndCheckChildrenDieOnKill(t *testing.T, opts ...oci.SpecOpts) 
 	}
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
-	stdout := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
+	task, err := container.NewTask(ctx, cio.NullIO)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2631,7 +2631,7 @@ func TestContainerUsername(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	buf := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(buf)))
+	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(buf)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2683,7 +2683,7 @@ func TestContainerPTY(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	buf := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(buf), withProcessTTY()))
+	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(buf), withProcessTTY()))
 	if err != nil {
 		t.Fatal(err)
 	}
