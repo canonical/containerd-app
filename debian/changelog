@@ -1,3 +1,12 @@
+containerd-app (1.7.19-0ubuntu2) plucky; urgency=medium
+
+  * d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch: drop
+    bogus entry.
+  * d/rules: do not skip pkg/cri/server tests. These were being skipped due to
+    a bogus entry in d/patches.
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 31 Oct 2024 13:16:12 -0300
+
 containerd-app (1.7.19-0ubuntu1) oracular; urgency=medium
 
   * New upstream release.
