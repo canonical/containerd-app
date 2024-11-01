@@ -17,8 +17,6 @@ export GO111MODULE := auto
 # Build with Golang 1.22
 export PATH := /usr/lib/go-1.22/bin:$(PATH)
 
-export SKIP := github.com/containerd/containerd/v2/pkg/cri/server
-
 execute_before_dh_gencontrol:
 	# use "dh_golang" to generate "misc:Built-Using" (via "go list")
 	DH_GOLANG_BUILDPKG=' \
@@ -49,7 +47,7 @@ override_dh_auto_build:
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 ifneq (arm, $(DEB_HOST_ARCH_CPU)) # skip the tests on armhf ("--- FAIL: TestParseSelector/linux (0.00s)  platforms_test.go:292: arm support not fully implemented: not implemented")
-	cd '$(OUR_GOPATH)/src/github.com/containerd/containerd' && make test SKIPTESTS='$(SKIP)'
+	cd '$(OUR_GOPATH)/src/github.com/containerd/containerd' && make test
 endif
 endif
 
