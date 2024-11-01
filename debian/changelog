@@ -3,6 +3,10 @@ containerd-app (1.7.19-0ubuntu1~24.04.1) noble; urgency=medium
   * Backport from oracular to noble. (LP: #2040461)
     - d/containerd.postinst: notify that a reboot is required to reload the
       AppArmor profile. (LP: #2065423)
+    - d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch:
+      drop bogus entry.
+    - d/rules: do not skip pkg/cri/server tests. These were being skipped due
+      to a bogus entry in d/patches.
 
  -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 11 Oct 2024 16:19:07 -0300
 
