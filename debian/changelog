@@ -1,3 +1,15 @@
+containerd-app (1.7.19-0ubuntu3) plucky; urgency=medium
+
+  * d/copyright: remove orphan entry from copyright. The entry was added back
+    in Lunar due to a vendored runc file copyright (cloned_binary.c). That
+    file was later removed from runc but the d/copyright entry for it was only
+    partially removed. These changes were not documented in d/changelog back
+    then.
+  * d/control: remove Uploaders field. It makes little to no sense in Ubuntu
+    and this is a Ubuntu specific package.
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Mon, 18 Nov 2024 21:42:18 -0300
+
 containerd-app (1.7.19-0ubuntu2) plucky; urgency=medium
 
   * d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch: drop
