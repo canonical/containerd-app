@@ -10,6 +10,13 @@ containerd-app (1.7.19-0ubuntu1~20.04.1) focal; urgency=medium
     - d/control: BuildDepends on procps. It is missing for riscv64 in focal.
     - d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch:
       drop bogus entry.
+    - d/copyright: remove orphan entry from copyright. The entry was added
+      back in Lunar due to a vendored runc file copyright (cloned_binary.c).
+      That file was later removed from runc but the d/copyright entry for it
+      was only partially removed. These changes were not documented in
+      d/changelog back then.
+    - d/control: remove Uploaders field. It makes little to no sense in Ubuntu
+      and this is a Ubuntu specific package.
 
  -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 11 Oct 2024 16:36:50 -0300
 
