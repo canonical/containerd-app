@@ -13,7 +13,7 @@ on:
 name: Release
 
 env:
-  GO_VERSION: "1.22.4"
+  GO_VERSION: "1.22.9"
 
 permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -121,8 +121,8 @@ jobs:
           docker buildx build ${cache} --build-arg RELEASE_VER --build-arg UBUNTU_VERSION=${{ matrix.dockerfile-ubuntu }} --build-arg GO_VERSION ${BUILD_ARGS} -f .github/workflows/release/Dockerfile --platform=${PLATFORM} -o releases/ .
           echo PLATFORM_CLEAN=${PLATFORM/\//-} >> $GITHUB_ENV
 
-          # Remove symlinks since we don't want these in the release Artifacts (if any)
-          find ./releases/ -maxdepth 1 -type l | xargs rm -f
+          # Remove symlinks since we don't want these in the release Artifacts
+          find ./releases/ -maxdepth 1 -type l | xargs rm
         working-directory: src/github.com/containerd/containerd
         env:
           PLATFORM: ${{ matrix.dockerfile-platform }}

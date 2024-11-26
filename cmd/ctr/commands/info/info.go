@@ -18,8 +18,9 @@ package info
 
 import (
 	api "github.com/containerd/containerd/api/services/introspection/v1"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	ptypes "github.com/containerd/containerd/protobuf/types"
+	"github.com/urfave/cli"
 )
 
 type Info struct {
@@ -27,7 +28,7 @@ type Info struct {
 }
 
 // Command is a cli command to output the containerd server info
-var Command = &cli.Command{
+var Command = cli.Command{
 	Name:  "info",
 	Usage: "Print the server info",
 	Action: func(context *cli.Context) error {
@@ -37,7 +38,7 @@ var Command = &cli.Command{
 		}
 		defer cancel()
 		var info Info
-		info.Server, err = client.IntrospectionService().Server(ctx)
+		info.Server, err = client.IntrospectionService().Server(ctx, &ptypes.Empty{})
 		if err != nil {
 			return err
 		}

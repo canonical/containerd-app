@@ -26,21 +26,22 @@ import (
 	"text/tabwriter"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/core/remotes"
-	"github.com/containerd/containerd/v2/pkg/progress"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/pkg/progress"
+	"github.com/containerd/containerd/remotes"
 )
 
-var fetchCommand = &cli.Command{
+var fetchCommand = cli.Command{
 	Name:      "fetch",
 	Usage:     "Fetch all content for an image into containerd",
 	ArgsUsage: "[flags] <remote> <object>",
@@ -59,24 +60,19 @@ content and snapshots ready for a direct use via the 'ctr run'.
 
 Most of this is experimental and there are few leaps to make this work.`,
 	Flags: append(commands.RegistryFlags, commands.LabelFlag,
-		&cli.StringSliceFlag{
+		cli.StringSliceFlag{
 			Name:  "platform",
 			Usage: "Pull content from a specific platform",
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "all-platforms",
 			Usage: "Pull content from all platforms",
 		},
-		&cli.BoolFlag{
-			Name:   "all-metadata",
-			Usage:  "(Deprecated: use skip-metadata) Pull metadata for all platforms",
-			Hidden: true,
+		cli.BoolFlag{
+			Name:  "all-metadata",
+			Usage: "Pull metadata for all platforms",
 		},
-		&cli.BoolFlag{
-			Name:  "skip-metadata",
-			Usage: "Skips metadata for unused platforms (Image may be unable to be pushed without metadata)",
-		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "metadata-only",
 			Usage: "Pull all metadata including manifests and configs",
 		},
@@ -131,13 +127,13 @@ func NewFetchConfig(ctx context.Context, clicontext *cli.Context) (*FetchConfig,
 		Labels:    clicontext.StringSlice("label"),
 		TraceHTTP: clicontext.Bool("http-trace"),
 	}
-	if !clicontext.Bool("debug") {
+	if !clicontext.GlobalBool("debug") {
 		config.ProgressOutput = os.Stdout
 	}
 	if !clicontext.Bool("all-platforms") {
 		p := clicontext.StringSlice("platform")
 		if len(p) == 0 {
-			p = append(p, platforms.DefaultString())
+			p = append(p, platforms.Format(platforms.DefaultSpec())) // For 1.7 continue using the old format without os-version included.
 		}
 		config.Platforms = p
 	}
@@ -146,7 +142,7 @@ func NewFetchConfig(ctx context.Context, clicontext *cli.Context) (*FetchConfig,
 		config.AllMetadata = true
 		// Any with an empty set is None
 		config.PlatformMatcher = platforms.Any()
-	} else if !clicontext.Bool("skip-metadata") {
+	} else if clicontext.Bool("all-metadata") {
 		config.AllMetadata = true
 	}
 

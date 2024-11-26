@@ -24,12 +24,7 @@ service Transfer {
 message TransferRequest {
 	google.protobuf.Any source = 1;
 	google.protobuf.Any destination = 2;
-	TransferOptions options = 3;
-}
-
-message TransferOptions {
- string progress_stream = 1;
- // Progress min interval
+	// + options
 }
 ```
 
@@ -42,10 +37,10 @@ message TransferOptions {
 | Registry    | Image Store | "pull"      | 1.7 |
 | Image Store | Registry    | "push"      | 1.7 |
 | Object stream (Archive) | Image Store | "import" | 1.7 |
-| Image Store | Object stream (Archive) | "export" | 1.7 |
+| Image Store | Object stream (Archive) | "export" | 1.7 (in progress) |
 | Object stream (Layer) | Mount/Snapshot | "unpack" | Not implemented |
 | Mount/Snapshot | Object stream (Layer) | "diff" | Not implemented |
-| Image Store | Image Store | "tag" | 1.7 |
+| Image Store | Image Store | "tag" | Not implemented |
 | Registry | Registry | mirror registry image | Not implemented |
 
 ### Local containerd daemon support

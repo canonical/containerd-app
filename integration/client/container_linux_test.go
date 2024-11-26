@@ -34,17 +34,21 @@ import (
 	"github.com/containerd/cgroups/v3"
 	"github.com/containerd/cgroups/v3/cgroup1"
 	cgroupsv2 "github.com/containerd/cgroups/v3/cgroup2"
-	"github.com/containerd/containerd/api/types/runc/options"
-	. "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/containerd/v2/pkg/oci"
-	"github.com/containerd/containerd/v2/pkg/shim"
-	"github.com/containerd/containerd/v2/pkg/sys"
-	"github.com/containerd/containerd/v2/plugins"
-	"github.com/containerd/errdefs"
+
+	. "github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/containers"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/integration/failpoint"
+	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/pkg/fifosync"
+	"github.com/containerd/containerd/plugin"
+	"github.com/containerd/containerd/runtime/linux/runctypes"
+	"github.com/containerd/containerd/runtime/v2/runc/options"
+	"github.com/containerd/containerd/sys"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -313,67 +317,6 @@ func TestShimDoesNotLeakPipes(t *testing.T) {
 	}
 }
 
-func TestShimDoesNotLeakSockets(t *testing.T) {
-	client, err := newClient(t, address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-
-	var (
-		image       Image
-		ctx, cancel = testContext(t)
-		id          = t.Name()
-	)
-	defer cancel()
-
-	image, err = client.GetImage(ctx, testImage)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	container, err := client.NewContainer(ctx, id, WithNewSnapshot(id, image), WithNewSpec(oci.WithImageConfig(image), withProcessArgs("sleep", "30")))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	task, err := container.NewTask(ctx, empty())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	exitChannel, err := task.Wait(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := task.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
-		t.Fatal(err)
-	}
-
-	<-exitChannel
-
-	if _, err := task.Delete(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := container.Delete(ctx, WithSnapshotCleanup); err != nil {
-		t.Fatal(err)
-	}
-
-	s, err := shim.SocketAddress(ctx, address, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = os.Stat(strings.TrimPrefix(s, "unix://")); err == nil || !os.IsNotExist(err) {
-		t.Errorf("Shim sockets have leaked after container has been deleted.")
-	}
-}
-
 func numPipes(pid int) (int, error) {
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("lsof -p %d | grep FIFO", pid))
 
@@ -438,9 +381,16 @@ func TestDaemonReconnectsToShimIOPipesOnRestart(t *testing.T) {
 
 	// After we restarted containerd we write some messages to the log pipes, simulating shim writing stuff there.
 	// Then we make sure that these messages are available on the containerd log thus proving that the server reconnected to the log pipes
-	logDirPath := getLogDirPath("v2", id)
+	runtimeVersion := getRuntimeVersion()
+	logDirPath := getLogDirPath(runtimeVersion, id)
 
-	writeToFile(t, filepath.Join(logDirPath, "log"), fmt.Sprintf("%s writing to log\n", id))
+	switch runtimeVersion {
+	case "v1":
+		writeToFile(t, filepath.Join(logDirPath, "shim.stdout.log"), fmt.Sprintf("%s writing to stdout\n", id))
+		writeToFile(t, filepath.Join(logDirPath, "shim.stderr.log"), fmt.Sprintf("%s writing to stderr\n", id))
+	case "v2":
+		writeToFile(t, filepath.Join(logDirPath, "log"), fmt.Sprintf("%s writing to log\n", id))
+	}
 
 	statusC, err := task.Wait(ctx)
 	if err != nil {
@@ -458,8 +408,18 @@ func TestDaemonReconnectsToShimIOPipesOnRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(string(stdioContents), fmt.Sprintf("%s writing to log", id)) {
-		t.Fatal("containerd did not connect to the shim log pipe")
+	switch runtimeVersion {
+	case "v1":
+		if !strings.Contains(string(stdioContents), fmt.Sprintf("%s writing to stdout", id)) {
+			t.Fatal("containerd did not connect to the shim stdout pipe")
+		}
+		if !strings.Contains(string(stdioContents), fmt.Sprintf("%s writing to stderr", id)) {
+			t.Fatal("containerd did not connect to the shim stderr pipe")
+		}
+	case "v2":
+		if !strings.Contains(string(stdioContents), fmt.Sprintf("%s writing to log", id)) {
+			t.Fatal("containerd did not connect to the shim log pipe")
+		}
 	}
 }
 
@@ -478,10 +438,21 @@ func writeToFile(t *testing.T, filePath, message string) {
 
 func getLogDirPath(runtimeVersion, id string) string {
 	switch runtimeVersion {
+	case "v1":
+		return filepath.Join(defaultRoot, plugin.RuntimeLinuxV1, testNamespace, id)
 	case "v2":
 		return filepath.Join(defaultState, "io.containerd.runtime.v2.task", testNamespace, id)
 	default:
 		panic(fmt.Errorf("Unsupported runtime version %s", runtimeVersion))
+	}
+}
+
+func getRuntimeVersion() string {
+	switch rt := os.Getenv("TEST_RUNTIME"); rt {
+	case plugin.RuntimeLinuxV1:
+		return "v1"
+	default:
+		return "v2"
 	}
 }
 
@@ -961,7 +932,8 @@ func TestContainerKillAll(t *testing.T) {
 	}
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
-	task, err := container.NewTask(ctx, cio.NullIO)
+	stdout := bytes.NewBuffer(nil)
+	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1065,6 +1037,49 @@ func TestDaemonRestartWithRunningShim(t *testing.T) {
 	}
 }
 
+func TestContainerRuntimeOptionsv1(t *testing.T) {
+	t.Parallel()
+
+	client, err := newClient(t, address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	var (
+		image       Image
+		ctx, cancel = testContext(t)
+		id          = t.Name()
+	)
+	defer cancel()
+
+	image, err = client.GetImage(ctx, testImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	container, err := client.NewContainer(
+		ctx, id,
+		WithNewSnapshot(id, image),
+		WithNewSpec(oci.WithImageConfig(image), withExitStatus(7)),
+		WithRuntime(plugin.RuntimeLinuxV1, &runctypes.RuncOptions{Runtime: "no-runc"}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer container.Delete(ctx, WithSnapshotCleanup)
+
+	task, err := container.NewTask(ctx, empty())
+	if err == nil {
+		t.Errorf("task creation should have failed")
+		task.Delete(ctx)
+		return
+	}
+	if !strings.Contains(err.Error(), `"no-runc"`) {
+		t.Errorf("task creation should have failed because of lack of executable. Instead failed with: %v", err.Error())
+	}
+}
+
 func TestContainerRuntimeOptionsv2(t *testing.T) {
 	t.Parallel()
 
@@ -1090,7 +1105,7 @@ func TestContainerRuntimeOptionsv2(t *testing.T) {
 		ctx, id,
 		WithNewSnapshot(id, image),
 		WithNewSpec(oci.WithImageConfig(image), withExitStatus(7)),
-		WithRuntime(plugins.RuntimeRuncV2, &options.Options{BinaryName: "no-runc"}),
+		WithRuntime(plugin.RuntimeRuncV1, &options.Options{BinaryName: "no-runc"}),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1178,9 +1193,17 @@ func testUserNamespaces(t *testing.T, readonlyRootFS bool) {
 	}
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
-	copts := &options.Options{
-		IoUid: 1000,
-		IoGid: 2000,
+	var copts interface{}
+	if CheckRuntime(client.Runtime(), "io.containerd.runc") {
+		copts = &options.Options{
+			IoUid: 1000,
+			IoGid: 2000,
+		}
+	} else {
+		copts = &runctypes.CreateOptions{
+			IoUid: 1000,
+			IoGid: 2000,
+		}
 	}
 
 	task, err := container.NewTask(ctx, cio.NewCreator(cio.WithStdio), func(_ context.Context, client *Client, r *TaskInfo) error {
@@ -1488,8 +1511,11 @@ func TestShimOOMScore(t *testing.T) {
 // status after container.NewTask. It's used to simulate that the runc-init
 // might be killed by oom-kill.
 func TestIssue9103(t *testing.T) {
-	if f := os.Getenv("RUNC_FLAVOR"); f != "" && f != "runc" {
-		t.Skip("test requires runc")
+	if os.Getenv("RUNC_FLAVOR") == "crun" {
+		t.Skip("skip it when using crun")
+	}
+	if getRuntimeVersion() == "v1" {
+		t.Skip("skip it when using shim v1")
 	}
 
 	client, err := newClient(t, address)
@@ -1569,7 +1595,214 @@ func TestIssue9103(t *testing.T) {
 
 			status, err := task.Status(ctx)
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedStatus, status.Status)
+			require.Equal(t, status.Status, tc.expectedStatus)
 		})
 	}
+}
+
+// TestIssue10589 is used as regression case for issue 10589.
+//
+// This issue was caused by a race between init exits and new exec process tracking inside the shim.  The test operates
+// by controlling the time between when the shim invokes "runc exec" and when the actual "runc exec" is triggered.  This
+// allows validating that races for shim state tracking between pre- and post-start of the exec process do not exist.
+//
+// The workflow is as follows:
+// 1. Create a container as normal
+// 2. Make an exec1 using runc-fp with delayexec
+// 3. Wait until the exec is waiting to start (triggered by delayexec)
+// 4. Kill the container init process (signalling it is easiest)
+// 5. Make an exec2 using runc-fp with delayexec
+// 6. Wait until the exec is waiting to start
+// 7. Allow exec1 to proceed
+// 8. Allow exec2 to proceed
+// 9. See that the container has exited and all execs have exited too
+//
+// https://github.com/containerd/containerd/issues/10589
+func TestIssue10589(t *testing.T) {
+	if f := os.Getenv("RUNC_FLAVOR"); f != "" && f != "runc" {
+		t.Skip("test requires runc")
+	}
+	if rt := os.Getenv("TEST_RUNTIME"); rt != "" && rt != plugin.RuntimeRuncV2 {
+		t.Skip("test requires io.containerd.runc.v2")
+	}
+
+	client, err := newClient(t, address)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		client.Close()
+	})
+
+	var (
+		image       Image
+		ctx, cancel = testContext(t)
+		id          = t.Name()
+	)
+	t.Cleanup(cancel)
+
+	image, err = client.GetImage(ctx, testImage)
+	require.NoError(t, err)
+
+	// 1. Create a sleeping container
+	t.Log("1. Create a sleeping container")
+	container, err := client.NewContainer(ctx, id,
+		WithNewSnapshot(id, image),
+		WithNewSpec(oci.WithImageConfig(image),
+			withProcessArgs("sleep", "inf"),
+			oci.WithAnnotations(map[string]string{
+				"oci.runc.failpoint.profile": "delayExec",
+			}),
+		),
+		WithRuntime(client.Runtime(), &options.Options{
+			BinaryName: "runc-fp",
+		}),
+	)
+	require.NoError(t, err, "create container")
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := container.Delete(ctx, WithSnapshotCleanup)
+		if err != nil {
+			t.Log("delete err", err)
+		}
+		cancel()
+	})
+
+	task, err := container.NewTask(ctx, empty())
+	require.NoError(t, err, "create task")
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		st, err := task.Delete(ctx, WithProcessKill)
+		t.Log("exit status", st)
+		if err != nil {
+			t.Log("kill err", err)
+		}
+		cancel()
+	})
+
+	err = task.Start(ctx)
+	require.NoError(t, err, "start container")
+
+	status, err := task.Status(ctx)
+	require.NoError(t, err, "container status")
+	require.Equal(t, Running, status.Status)
+
+	// 2. Create an exec
+	t.Log("2. Create exec1")
+	exec1ReadyFifo, err := fifosync.NewWaiter(filepath.Join(t.TempDir(), "exec1-ready.fifo"), 0600)
+	require.NoError(t, err, "create exec1 ready fifo")
+	exec1DelayFifo, err := fifosync.NewTrigger(filepath.Join(t.TempDir(), "exec1-delay.fifo"), 0600)
+	require.NoError(t, err, "create exec1 delay fifo")
+	exec1, err := task.Exec(ctx, "exec1", &specs.Process{
+		Args: []string{"/bin/sleep", "301"},
+		Cwd:  "/",
+		Env: []string{
+			failpoint.DelayExecReadyEnv + "=" + exec1ReadyFifo.Name(),
+			failpoint.DelayExecDelayEnv + "=" + exec1DelayFifo.Name(),
+		},
+	}, cio.NullIO)
+	require.NoError(t, err, "create exec1")
+
+	exec1done := make(chan struct{})
+	go func() {
+		defer close(exec1done)
+		t.Log("Starting exec1")
+		err := exec1.Start(ctx)
+		assert.Error(t, err, "start exec1")
+		t.Logf("error starting exec1: %s", err)
+	}()
+
+	// 3. Wait until the exec is waiting to start
+	t.Log("3. Wait until exec1 is waiting to start")
+	err = exec1ReadyFifo.Wait()
+	require.NoError(t, err, "open exec1 fifo")
+
+	// 4. Kill the container init process
+	t.Log("4. Kill the container init process")
+	target := task.Pid()
+	t.Logf("Killing main pid (%v) of container %s", target, container.ID())
+	syscall.Kill(int(target), syscall.SIGKILL)
+	status, err = task.Status(ctx)
+	require.NoError(t, err, "container status")
+	t.Log("container status", status.Status)
+
+	// 5. Make an exec (2) using this failpoint
+	t.Log("5. Create exec2")
+	exec2ReadyFifo, err := fifosync.NewWaiter(filepath.Join(t.TempDir(), "exec2-ready.fifo"), 0600)
+	require.NoError(t, err, "create exec2 ready fifo: %q", exec2ReadyFifo)
+	exec2DelayFifo, err := fifosync.NewTrigger(filepath.Join(t.TempDir(), "exec2-delay.fifo"), 0600)
+	require.NoError(t, err, "create exec2 delay fifo: %q", exec2DelayFifo)
+	exec2, err := task.Exec(ctx, "exec2", &specs.Process{
+		Args: []string{"/bin/sleep", "302"},
+		Cwd:  "/",
+		Env: []string{
+			failpoint.DelayExecReadyEnv + "=" + exec2ReadyFifo.Name(),
+			failpoint.DelayExecDelayEnv + "=" + exec2DelayFifo.Name(),
+		},
+	}, cio.NullIO)
+	require.NoError(t, err, "create exec2")
+
+	exec2done := make(chan struct{})
+	didExec2Run := true
+	go func() {
+		defer close(exec2done)
+		t.Log("Starting exec2")
+		err := exec2.Start(ctx)
+		assert.Error(t, err, "start exec2")
+		t.Logf("error starting exec2: %s", err)
+	}()
+
+	// 6. Wait until the exec is waiting to start
+	t.Log("6. Wait until exec2 is waiting to start")
+	exec2ready := make(chan struct{})
+	go func() {
+		exec2ReadyFifo.Wait()
+		close(exec2ready)
+	}()
+	select {
+	case <-exec2ready:
+	case <-exec2done:
+		didExec2Run = false
+	}
+
+	// 7. Allow exec=1 to proceed
+	t.Log("7. Allow exec=1 to proceed")
+	err = exec1DelayFifo.Trigger()
+	assert.NoError(t, err, "trigger exec1 fifo")
+	status, err = task.Status(ctx)
+	require.NoError(t, err, "container status")
+	t.Log("container status", status.Status)
+	<-exec1done
+	status, err = task.Status(ctx)
+	require.NoError(t, err, "container status")
+	t.Log("container status", status.Status)
+
+	// 8. Allow exec=2 to proceed
+	if didExec2Run {
+		t.Log("8. Allow exec2 to proceed")
+		err = exec2DelayFifo.Trigger()
+		assert.NoError(t, err, "trigger exec2 fifo")
+		status, err = task.Status(ctx)
+		require.NoError(t, err, "container status")
+		t.Log("container status", status.Status)
+		<-exec2done
+		status, err = task.Status(ctx)
+		require.NoError(t, err, "container status")
+		t.Log("container status", status.Status)
+	} else {
+		t.Log("8. Skip exec2")
+	}
+
+	// 9. Validate
+	t.Log("9. Validate")
+	status, err = exec1.Status(ctx)
+	require.NoError(t, err, "exec1 status")
+	t.Logf("exec1 status: %s", status.Status)
+	assert.Equal(t, Created, status.Status)
+	status, err = exec2.Status(ctx)
+	require.NoError(t, err, "exec2 status")
+	t.Logf("exec2 status: %s", status.Status)
+	assert.Equal(t, Created, status.Status)
+	status, err = task.Status(ctx)
+	t.Logf("task status: %s", status.Status)
+	require.NoError(t, err, "container status")
+	assert.Equal(t, Stopped, status.Status)
 }

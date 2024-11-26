@@ -20,39 +20,37 @@ import (
 	"errors"
 
 	"github.com/containerd/console"
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/errdefs"
-	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
-var startCommand = &cli.Command{
+var startCommand = cli.Command{
 	Name:      "start",
 	Usage:     "Start a container that has been created",
 	ArgsUsage: "CONTAINER",
 	Flags: append(platformStartFlags, []cli.Flag{
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "null-io",
 			Usage: "Send all IO to /dev/null",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "log-uri",
 			Usage: "Log uri",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "fifo-dir",
 			Usage: "Directory used for storing IO FIFOs",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "pid-file",
 			Usage: "File path to write the task's pid",
 		},
-		&cli.BoolFlag{
-			Name:    "detach",
-			Aliases: []string{"d"},
-			Usage:   "Detach from the task after it has started execution",
+		cli.BoolFlag{
+			Name:  "detach,d",
+			Usage: "Detach from the task after it has started execution",
 		},
 	}...),
 	Action: func(context *cli.Context) error {
@@ -98,12 +96,7 @@ var startCommand = &cli.Command{
 		}
 		var statusC <-chan containerd.ExitStatus
 		if !detach {
-			defer func() {
-				if _, err := task.Delete(ctx, containerd.WithProcessKill); err != nil && !errdefs.IsNotFound(err) {
-					log.L.WithError(err).Error("failed to cleanup task")
-				}
-			}()
-
+			defer task.Delete(ctx)
 			if statusC, err = task.Wait(ctx); err != nil {
 				return err
 			}
@@ -122,7 +115,7 @@ var startCommand = &cli.Command{
 		}
 		if tty {
 			if err := HandleConsoleResize(ctx, task, con); err != nil {
-				log.L.WithError(err).Error("console resize")
+				logrus.WithError(err).Error("console resize")
 			}
 		} else {
 			sigc := commands.ForwardAllSignals(ctx, task)
@@ -138,7 +131,7 @@ var startCommand = &cli.Command{
 			return err
 		}
 		if code != 0 {
-			return cli.Exit("", int(code))
+			return cli.NewExitError("", int(code))
 		}
 		return nil
 	},

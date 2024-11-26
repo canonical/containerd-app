@@ -23,9 +23,10 @@ import (
 	"sync"
 	"time"
 
-	internalapi "github.com/containerd/containerd/v2/integration/cri-api/pkg/apis"
-	"github.com/containerd/containerd/v2/internal/cri/util"
-	"github.com/containerd/log"
+	"github.com/sirupsen/logrus"
+
+	internalapi "github.com/containerd/containerd/integration/cri-api/pkg/apis"
+	"github.com/containerd/containerd/pkg/cri/util"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
@@ -62,7 +63,7 @@ func (w *criWorker) getFailures() int {
 func (w *criWorker) run(ctx, tctx context.Context) {
 	defer func() {
 		w.wg.Done()
-		log.L.Infof("worker %d finished", w.id)
+		logrus.Infof("worker %d finished", w.id)
 	}()
 	for {
 		select {
@@ -73,13 +74,13 @@ func (w *criWorker) run(ctx, tctx context.Context) {
 
 		w.count++
 		id := w.getID()
-		log.L.Debugf("starting container %s", id)
+		logrus.Debugf("starting container %s", id)
 		start := time.Now()
 		if err := w.runSandbox(tctx, ctx, id); err != nil {
 			if err != context.DeadlineExceeded ||
 				!strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 				w.failures++
-				log.L.WithError(err).Errorf("running container %s", id)
+				logrus.WithError(err).Errorf("running container %s", id)
 				errCounter.WithValues(err.Error()).Inc()
 
 			}
@@ -117,19 +118,23 @@ func (w *criWorker) runSandbox(tctx, ctx context.Context, id string) (err error)
 	// verify it is running ?
 
 	ticker := time.NewTicker(250 * time.Millisecond)
+	quit := make(chan struct{})
 	go func() {
 		for {
 			select {
 			case <-tctx.Done():
-				ticker.Stop()
+				close(quit)
 				return
 			case <-ticker.C:
 				// do stuff
 				status, err := w.client.PodSandboxStatus(sb)
 				if err != nil && status.GetState() == runtime.PodSandboxState_SANDBOX_READY {
-					ticker.Stop()
+					close(quit)
 					return
 				}
+			case <-quit:
+				ticker.Stop()
+				return
 			}
 		}
 	}()
@@ -153,13 +158,8 @@ func criCleanup(ctx context.Context, client internalapi.RuntimeService) error {
 	}
 
 	for _, sb := range sandboxes {
-		if err := client.StopPodSandbox(sb.Id); err != nil {
-			return err
-		}
-
-		if err := client.RemovePodSandbox(sb.Id); err != nil {
-			return err
-		}
+		client.StopPodSandbox(sb.Id)
+		client.RemovePodSandbox(sb.Id)
 	}
 
 	return nil

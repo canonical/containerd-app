@@ -31,12 +31,12 @@ import (
 	"strings"
 
 	"github.com/containerd/console"
-	"github.com/containerd/containerd/v2/core/remotes"
-	"github.com/containerd/containerd/v2/core/remotes/docker"
-	"github.com/containerd/containerd/v2/core/remotes/docker/config"
-	"github.com/containerd/containerd/v2/core/transfer/registry"
+	"github.com/containerd/containerd/pkg/transfer/registry"
+	"github.com/containerd/containerd/remotes"
+	"github.com/containerd/containerd/remotes/docker"
+	"github.com/containerd/containerd/remotes/docker/config"
 	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 )
 
 // PushTracker returns a new InMemoryTracker which tracks the ref status
