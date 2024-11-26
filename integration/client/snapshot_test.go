@@ -20,10 +20,9 @@ import (
 	"context"
 	"testing"
 
-	. "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/snapshots"
-	"github.com/containerd/containerd/v2/core/snapshots/testsuite"
-	"github.com/containerd/containerd/v2/defaults"
+	. "github.com/containerd/containerd"
+	"github.com/containerd/containerd/snapshots"
+	"github.com/containerd/containerd/snapshots/testsuite"
 )
 
 func newSnapshotter(ctx context.Context, root string) (snapshots.Snapshotter, func() error, error) {
@@ -32,7 +31,7 @@ func newSnapshotter(ctx context.Context, root string) (snapshots.Snapshotter, fu
 		return nil, nil, err
 	}
 
-	sn := client.SnapshotService(defaults.DefaultSnapshotter)
+	sn := client.SnapshotService(DefaultSnapshotter)
 
 	return sn, func() error {
 		// no need to close remote snapshotter
@@ -45,5 +44,5 @@ func TestSnapshotterClient(t *testing.T) {
 		t.Skip()
 	}
 
-	testsuite.SnapshotterSuite(t, defaults.DefaultSnapshotter, newSnapshotter)
+	testsuite.SnapshotterSuite(t, DefaultSnapshotter, newSnapshotter)
 }

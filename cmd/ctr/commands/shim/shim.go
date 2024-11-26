@@ -28,49 +28,48 @@ import (
 	"strings"
 
 	"github.com/containerd/console"
-	"github.com/containerd/containerd/api/runtime/task/v3"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	ptypes "github.com/containerd/containerd/v2/pkg/protobuf/types"
-	"github.com/containerd/containerd/v2/pkg/shim"
-	"github.com/containerd/log"
+	"github.com/containerd/containerd/api/runtime/task/v2"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/namespaces"
+	ptypes "github.com/containerd/containerd/protobuf/types"
+	"github.com/containerd/containerd/runtime/v2/shim"
 	"github.com/containerd/ttrpc"
 	"github.com/containerd/typeurl/v2"
 	"github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/urfave/cli/v2"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 var fifoFlags = []cli.Flag{
-	&cli.StringFlag{
+	cli.StringFlag{
 		Name:  "stdin",
 		Usage: "Specify the path to the stdin fifo",
 	},
-	&cli.StringFlag{
+	cli.StringFlag{
 		Name:  "stdout",
 		Usage: "Specify the path to the stdout fifo",
 	},
-	&cli.StringFlag{
+	cli.StringFlag{
 		Name:  "stderr",
 		Usage: "Specify the path to the stderr fifo",
 	},
-	&cli.BoolFlag{
-		Name:    "tty",
-		Aliases: []string{"t"},
-		Usage:   "Enable tty support",
+	cli.BoolFlag{
+		Name:  "tty,t",
+		Usage: "Enable tty support",
 	},
 }
 
 // Command is the cli command for interacting with a task
-var Command = &cli.Command{
+var Command = cli.Command{
 	Name:  "shim",
 	Usage: "Interact with a shim directly",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "id",
 			Usage: "Container id",
 		},
 	},
-	Subcommands: []*cli.Command{
+	Subcommands: []cli.Command{
 		deleteCommand,
 		execCommand,
 		startCommand,
@@ -78,7 +77,7 @@ var Command = &cli.Command{
 	},
 }
 
-var startCommand = &cli.Command{
+var startCommand = cli.Command{
 	Name:  "start",
 	Usage: "Start a container with a task",
 	Action: func(context *cli.Context) error {
@@ -93,7 +92,7 @@ var startCommand = &cli.Command{
 	},
 }
 
-var deleteCommand = &cli.Command{
+var deleteCommand = cli.Command{
 	Name:  "delete",
 	Usage: "Delete a container with a task",
 	Action: func(context *cli.Context) error {
@@ -112,7 +111,7 @@ var deleteCommand = &cli.Command{
 	},
 }
 
-var stateCommand = &cli.Command{
+var stateCommand = cli.Command{
 	Name:  "state",
 	Usage: "Get the state of all the processes of the task",
 	Action: func(context *cli.Context) error {
@@ -121,7 +120,7 @@ var stateCommand = &cli.Command{
 			return err
 		}
 		r, err := service.State(gocontext.Background(), &task.StateRequest{
-			ID: context.String("id"),
+			ID: context.GlobalString("id"),
 		})
 		if err != nil {
 			return err
@@ -131,26 +130,24 @@ var stateCommand = &cli.Command{
 	},
 }
 
-var execCommand = &cli.Command{
+var execCommand = cli.Command{
 	Name:  "exec",
 	Usage: "Exec a new process in the task's container",
 	Flags: append(fifoFlags,
-		&cli.BoolFlag{
-			Name:    "attach",
-			Aliases: []string{"a"},
-			Usage:   "Stay attached to the container and open the fifos",
+		cli.BoolFlag{
+			Name:  "attach,a",
+			Usage: "Stay attached to the container and open the fifos",
 		},
-		&cli.StringSliceFlag{
-			Name:    "env",
-			Aliases: []string{"e"},
-			Usage:   "Add environment vars",
-			Value:   cli.NewStringSlice(),
+		cli.StringSliceFlag{
+			Name:  "env,e",
+			Usage: "Add environment vars",
+			Value: &cli.StringSlice{},
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "cwd",
 			Usage: "Current working directory",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "spec",
 			Usage: "Runtime spec",
 		},
@@ -207,7 +204,7 @@ var execCommand = &cli.Command{
 		}
 		fmt.Printf("exec running with pid %d\n", r.Pid)
 		if context.Bool("attach") {
-			log.L.Info("attaching")
+			logrus.Info("attaching")
 			if tty {
 				current := console.Current()
 				defer current.Reset()
@@ -232,19 +229,19 @@ var execCommand = &cli.Command{
 	},
 }
 
-func getTaskService(context *cli.Context) (task.TTRPCTaskService, error) {
-	id := context.String("id")
+func getTaskService(context *cli.Context) (task.TaskService, error) {
+	id := context.GlobalString("id")
 	if id == "" {
 		return nil, fmt.Errorf("container id must be specified")
 	}
-	ns := context.String("namespace")
+	ns := context.GlobalString("namespace")
 
 	// /containerd-shim/ns/id/shim.sock is the old way to generate shim socket,
 	// compatible it
 	s1 := filepath.Join(string(filepath.Separator), "containerd-shim", ns, id, "shim.sock")
 	// this should not error, ctr always get a default ns
 	ctx := namespaces.WithNamespace(gocontext.Background(), ns)
-	s2, _ := shim.SocketAddress(ctx, context.String("address"), id)
+	s2, _ := shim.SocketAddress(ctx, context.GlobalString("address"), id)
 	s2 = strings.TrimPrefix(s2, "unix://")
 
 	for _, socket := range []string{s2, "\x00" + s1} {
@@ -255,7 +252,7 @@ func getTaskService(context *cli.Context) (task.TTRPCTaskService, error) {
 			// TODO(stevvooe): This actually leaks the connection. We were leaking it
 			// before, so may not be a huge deal.
 
-			return task.NewTTRPCTaskClient(client), nil
+			return task.NewTaskClient(client), nil
 		}
 	}
 

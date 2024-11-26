@@ -39,14 +39,14 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/containerd/containerd/v2/core/mount"
+	"github.com/containerd/containerd/mount"
 	cnins "github.com/containernetworking/plugins/pkg/ns"
 	"github.com/moby/sys/symlink"
 	"golang.org/x/sys/unix"
 )
 
 // Some of the following functions are migrated from
-// https://github.com/containernetworking/plugins/blob/main/pkg/testutils/netns_linux.go
+// https://github.com/containernetworking/plugins/blob/master/pkg/testutils/netns_linux.go
 
 // newNS creates a new persistent (bind-mounted) network namespace and returns the
 // path to the network namespace.
@@ -177,17 +177,11 @@ type NetNS struct {
 }
 
 // NewNetNS creates a network namespace.
-// The name of the network namespace is randomly generated.
-// The returned netns is created under baseDir, with its path
-// following the pattern "baseDir/<generated-name>".
 func NewNetNS(baseDir string) (*NetNS, error) {
 	return NewNetNSFromPID(baseDir, 0)
 }
 
-// NewNetNSFromPID returns the netns from pid or a new netns if pid is 0.
-// The name of the network namespace is randomly generated.
-// The returned netns is created under baseDir, with its path
-// following the pattern "baseDir/<generated-name>".
+// NewNetNS returns the netns from pid or a new netns if pid is 0.
 func NewNetNSFromPID(baseDir string, pid uint32) (*NetNS, error) {
 	path, err := newNS(baseDir, pid)
 	if err != nil {

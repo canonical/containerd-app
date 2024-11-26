@@ -1,24 +1,33 @@
 containerd-app (1.7.19-0ubuntu1~20.04.1) focal; urgency=medium
 
   * Backport from oracular to focal. (LP: #2040461)
-    - d/rules:
-      + fix path of the containerd systemd service file.
-      + do not skip pkg/cri/server tests. These were being skipped due to a
-        bogus entry in d/patches.
-    - d/p/ftbfs-riscv-timeout.patch: increase test timeouts to avoid FTBFS
-      issues in riscv64 builds.
-    - d/control: BuildDepends on procps. It is missing for riscv64 in focal.
-    - d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch:
-      drop bogus entry.
-    - d/copyright: remove orphan entry from copyright. The entry was added
-      back in Lunar due to a vendored runc file copyright (cloned_binary.c).
-      That file was later removed from runc but the d/copyright entry for it
-      was only partially removed. These changes were not documented in
-      d/changelog back then.
-    - d/control: remove Uploaders field. It makes little to no sense in Ubuntu
-      and this is a Ubuntu specific package.
+  * d/rules: fix path of the containerd systemd service file.
+  * d/p/ftbfs-riscv-timeout.patch: increase test timeouts to avoid FTBFS
+    issues in riscv64 builds.
+  * d/control: BuildDepends on procps. It is missing for riscv64 in focal.
 
  -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 11 Oct 2024 16:36:50 -0300
+
+containerd-app (1.7.19-0ubuntu3) plucky; urgency=medium
+
+  * d/copyright: remove orphan entry from copyright. The entry was added back
+    in Lunar due to a vendored runc file copyright (cloned_binary.c). That
+    file was later removed from runc but the d/copyright entry for it was only
+    partially removed. These changes were not documented in d/changelog back
+    then.
+  * d/control: remove Uploaders field. It makes little to no sense in Ubuntu
+    and this is a Ubuntu specific package.
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Mon, 18 Nov 2024 21:42:18 -0300
+
+containerd-app (1.7.19-0ubuntu2) plucky; urgency=medium
+
+  * d/p/0002-Skip-tests-which-require-a-certain-level-of-privileg.patch: drop
+    bogus entry.
+  * d/rules: do not skip pkg/cri/server tests. These were being skipped due to
+    a bogus entry in d/patches.
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 31 Oct 2024 13:16:12 -0300
 
 containerd-app (1.7.19-0ubuntu1) oracular; urgency=medium
 

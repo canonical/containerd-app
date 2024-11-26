@@ -24,17 +24,19 @@ import (
 
 func setRlimit() error {
 	rlimit := uint64(100000)
-	var limit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
-		return err
-	}
-	if limit.Cur < rlimit {
-		limit.Cur = rlimit
-		if limit.Max < limit.Cur {
-			limit.Max = limit.Cur
-		}
-		if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
+	if rlimit > 0 {
+		var limit syscall.Rlimit
+		if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
 			return err
+		}
+		if limit.Cur < rlimit {
+			limit.Cur = rlimit
+			if limit.Max < limit.Cur {
+				limit.Max = limit.Cur
+			}
+			if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

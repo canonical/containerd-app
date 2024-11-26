@@ -4,13 +4,24 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
+
+var sysCPU struct {
+	once sync.Once
+	err  error
+	num  int
+}
 
 // PossibleCPUs returns the max number of CPUs a system may possibly have
 // Logical CPU numbers must be of the form 0-n
-var PossibleCPUs = Memoize(func() (int, error) {
-	return parseCPUsFromFile("/sys/devices/system/cpu/possible")
-})
+func PossibleCPUs() (int, error) {
+	sysCPU.once.Do(func() {
+		sysCPU.num, sysCPU.err = parseCPUsFromFile("/sys/devices/system/cpu/possible")
+	})
+
+	return sysCPU.num, sysCPU.err
+}
 
 func parseCPUsFromFile(path string) (int, error) {
 	spec, err := os.ReadFile(path)

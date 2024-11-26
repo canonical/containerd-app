@@ -24,8 +24,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/containerd/containers"
+	"github.com/containerd/containerd/oci"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -87,7 +87,7 @@ func WithGPUs(opts ...Opts) oci.SpecOpts {
 		if s.Hooks == nil {
 			s.Hooks = &specs.Hooks{}
 		}
-		s.Hooks.CreateRuntime = append(s.Hooks.CreateRuntime, specs.Hook{
+		s.Hooks.Prestart = append(s.Hooks.Prestart, specs.Hook{
 			Path: c.OCIHookPath,
 			Args: append([]string{
 				"containerd",

@@ -57,10 +57,8 @@ func marshalBytes(data interface{}, length int) (buf []byte, err error) {
 	case Map, *Map, Program, *Program:
 		err = fmt.Errorf("can't marshal %T", value)
 	default:
-		wr := internal.NewBuffer(make([]byte, 0, length))
-		defer internal.PutBuffer(wr)
-
-		err = binary.Write(wr, internal.NativeEndian, value)
+		var wr bytes.Buffer
+		err = binary.Write(&wr, internal.NativeEndian, value)
 		if err != nil {
 			err = fmt.Errorf("encoding %T: %v", value, err)
 		}

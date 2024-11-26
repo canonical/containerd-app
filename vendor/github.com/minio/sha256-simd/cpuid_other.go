@@ -23,11 +23,6 @@ import (
 	"github.com/klauspost/cpuid/v2"
 )
 
-var (
-	hasIntelSha = runtime.GOARCH == "amd64" && cpuid.CPU.Supports(cpuid.SHA, cpuid.SSSE3, cpuid.SSE4)
-	hasAvx512   = cpuid.CPU.Supports(cpuid.AVX512F, cpuid.AVX512DQ, cpuid.AVX512BW, cpuid.AVX512VL)
-)
-
 func hasArmSha2() bool {
 	if cpuid.CPU.Has(cpuid.SHA2) {
 		return true
@@ -47,4 +42,5 @@ func hasArmSha2() bool {
 		return false
 	}
 	return bytes.Contains(cpuInfo, []byte(sha256Feature))
+
 }

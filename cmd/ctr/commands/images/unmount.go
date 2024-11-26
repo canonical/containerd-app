@@ -17,23 +17,23 @@
 package images
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/leases"
-	"github.com/containerd/containerd/v2/core/mount"
-	"github.com/containerd/errdefs"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/mount"
 )
 
-var unmountCommand = &cli.Command{
+var unmountCommand = cli.Command{
 	Name:        "unmount",
 	Usage:       "Unmount the image from the target",
 	ArgsUsage:   "[flags] <target>",
 	Description: "Unmount the image rootfs from the specified target.",
 	Flags: append(append(commands.RegistryFlags, append(commands.SnapshotterFlags, commands.LabelFlag)...),
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "rm",
 			Usage: "Remove the snapshot after a successful unmount",
 		},
@@ -43,7 +43,7 @@ var unmountCommand = &cli.Command{
 			target = context.Args().First()
 		)
 		if target == "" {
-			return errors.New("please provide a target path to unmount from")
+			return fmt.Errorf("please provide a target path to unmount from")
 		}
 
 		client, ctx, cancel, err := commands.NewClient(context)

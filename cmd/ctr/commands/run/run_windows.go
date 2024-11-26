@@ -23,18 +23,18 @@ import (
 
 	"github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
 	"github.com/containerd/console"
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/snapshots"
-	"github.com/containerd/containerd/v2/pkg/netns"
-	"github.com/containerd/containerd/v2/pkg/oci"
-	"github.com/containerd/log"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/pkg/netns"
+	"github.com/containerd/containerd/snapshots"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/urfave/cli/v2"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 var platformRunFlags = []cli.Flag{
-	&cli.BoolFlag{
+	cli.BoolFlag{
 		Name:  "isolated",
 		Usage: "Run the container with vm isolation",
 	},
@@ -62,7 +62,7 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 	} else {
 		var (
 			ref  = context.Args().First()
-			args = context.Args().Slice()[2:]
+			args = context.Args()[2:]
 		)
 
 		id = context.Args().Get(1)
@@ -122,7 +122,7 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 			con := console.Current()
 			size, err := con.Size()
 			if err != nil {
-				log.L.WithError(err).Error("console size")
+				logrus.WithError(err).Error("console size")
 			}
 			opts = append(opts, oci.WithTTYSize(int(size.Width), int(size.Height)))
 		}
@@ -135,6 +135,8 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 				return nil, err
 			}
 			opts = append(opts, oci.WithWindowsNetworkNamespace(ns.GetPath()))
+			cniMeta := &commands.NetworkMetaData{EnableCni: true}
+			cOpts = append(cOpts, containerd.WithContainerExtension(commands.CtrCniMetadataExtension, cniMeta))
 		}
 		if context.Bool("isolated") {
 			opts = append(opts, oci.WithWindowsHyperV)
@@ -167,16 +169,11 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 		}
 	}
 
-	if context.Bool("cni") {
-		cniMeta := &commands.NetworkMetaData{EnableCni: true}
-		cOpts = append(cOpts, containerd.WithContainerExtension(commands.CtrCniMetadataExtension, cniMeta))
-	}
-
 	runtime := context.String("runtime")
 	var runtimeOpts interface{}
 	if runtime == "io.containerd.runhcs.v1" {
 		runtimeOpts = &options.Options{
-			Debug: context.Bool("debug"),
+			Debug: context.GlobalBool("debug"),
 		}
 	}
 	cOpts = append(cOpts, containerd.WithRuntime(runtime, runtimeOpts))

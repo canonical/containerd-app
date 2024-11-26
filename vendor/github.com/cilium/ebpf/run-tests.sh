@@ -6,8 +6,6 @@
 #     $ ./run-tests.sh 5.4
 #     Run a subset of tests:
 #     $ ./run-tests.sh 5.4 ./link
-#     Run using a local kernel image
-#     $ ./run-tests.sh /path/to/bzImage
 
 set -euo pipefail
 
@@ -97,45 +95,38 @@ elif [[ "${1:-}" = "--exec-test" ]]; then
   exit $rc # this return code is "swallowed" by qemu
 fi
 
-if [[ -z "${1:-}" ]]; then
-  echo "Expecting kernel version or path as first argument"
+readonly kernel_version="${1:-}"
+if [[ -z "${kernel_version}" ]]; then
+  echo "Expecting kernel version as first argument"
   exit 1
 fi
+shift
 
+readonly kernel="linux-${kernel_version}.bz"
+readonly selftests="linux-${kernel_version}-selftests-bpf.tgz"
 readonly input="$(mktemp -d)"
 readonly tmp_dir="${TMPDIR:-/tmp}"
+readonly branch="${BRANCH:-master}"
 
 fetch() {
     echo Fetching "${1}"
     pushd "${tmp_dir}" > /dev/null
-    curl --no-progress-meter -L -O --fail --etag-compare "${1}.etag" --etag-save "${1}.etag" "https://github.com/cilium/ci-kernels/raw/${BRANCH:-master}/${1}"
+    curl -s -L -O --fail --etag-compare "${1}.etag" --etag-save "${1}.etag" "https://github.com/cilium/ci-kernels/raw/${branch}/${1}"
     local ret=$?
     popd > /dev/null
     return $ret
 }
 
-if [[ -f "${1}" ]]; then
-  readonly kernel="${1}"
-  cp "${1}" "${input}/bzImage"
+fetch "${kernel}"
+cp "${tmp_dir}/${kernel}" "${input}/bzImage"
+
+if fetch "${selftests}"; then
+  echo "Decompressing selftests"
+  mkdir "${input}/bpf"
+  tar --strip-components=4 -xf "${tmp_dir}/${selftests}" -C "${input}/bpf"
 else
-# LINUX_VERSION_CODE test compares this to discovered value.
-  export KERNEL_VERSION="${1}"
-
-  readonly kernel="linux-${1}.bz"
-  readonly selftests="linux-${1}-selftests-bpf.tgz"
-
-  fetch "${kernel}"
-  cp "${tmp_dir}/${kernel}" "${input}/bzImage"
-
-  if fetch "${selftests}"; then
-    echo "Decompressing selftests"
-    mkdir "${input}/bpf"
-    tar --strip-components=4 -xf "${tmp_dir}/${selftests}" -C "${input}/bpf"
-  else
-    echo "No selftests found, disabling"
-  fi
+  echo "No selftests found, disabling"
 fi
-shift
 
 args=(-short -coverpkg=./... -coverprofile=coverage.out -count 1 ./...)
 if (( $# > 0 )); then
@@ -144,9 +135,11 @@ fi
 
 export GOFLAGS=-mod=readonly
 export CGO_ENABLED=0
+# LINUX_VERSION_CODE test compares this to discovered value.
+export KERNEL_VERSION="${kernel_version}"
 
-echo Testing on "${kernel}"
+echo Testing on "${kernel_version}"
 go test -exec "$script --exec-vm $input" "${args[@]}"
-echo "Test successful on ${kernel}"
+echo "Test successful on ${kernel_version}"
 
 rm -r "${input}"
