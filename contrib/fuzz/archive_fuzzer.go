@@ -24,10 +24,11 @@ import (
 	"path"
 
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
+	"github.com/sirupsen/logrus"
 
-	imageArchive "github.com/containerd/containerd/v2/core/images/archive"
-	"github.com/containerd/containerd/v2/pkg/archive"
-	"github.com/containerd/containerd/v2/plugins/content/local"
+	"github.com/containerd/containerd/archive"
+	"github.com/containerd/containerd/content/local"
+	imageArchive "github.com/containerd/containerd/images/archive"
 	"github.com/containerd/log"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -41,7 +42,7 @@ func FuzzApply(data []byte) int {
 	// if the input is random.
 	//
 	// level=warning msg="ignored xattr ... in archive" error="operation not supported"
-	log.G(ctx).Logger.SetLevel(log.PanicLevel)
+	log.G(ctx).Logger.SetLevel(logrus.PanicLevel)
 
 	f := fuzz.NewConsumer(data)
 	iters, err := f.GetInt()

@@ -19,10 +19,11 @@ package main
 import (
 	"context"
 
-	"github.com/containerd/containerd/v2/cmd/containerd-shim-runc-v2/manager"
-	"github.com/containerd/containerd/v2/pkg/shim"
+	"github.com/containerd/containerd/runtime/v2/runc/manager"
+	_ "github.com/containerd/containerd/runtime/v2/runc/pause"
+	"github.com/containerd/containerd/runtime/v2/shim"
 )
 
 func main() {
-	shim.Run(context.Background(), manager.NewShimManager("io.containerd.runc-fp.v1"))
+	shim.RunManager(context.Background(), manager.NewShimManager("io.containerd.runc-fp.v1"))
 }

@@ -19,7 +19,7 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
-	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -60,7 +60,7 @@ func run(opts Options, f func(*Plugin) error) error {
 	if len(os.Args) > 1 {
 		return fmt.Errorf("unknown argument %q (this program should be run by protoc, not directly)", os.Args[1])
 	}
-	in, err := io.ReadAll(os.Stdin)
+	in, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		return err
 	}
@@ -108,9 +108,6 @@ type Plugin struct {
 	// google.protobuf.CodeGeneratorResponse.supported_features for details.
 	SupportedFeatures uint64
 
-	SupportedEditionsMinimum descriptorpb.Edition
-	SupportedEditionsMaximum descriptorpb.Edition
-
 	fileReg        *protoregistry.Files
 	enumsByName    map[protoreflect.FullName]*Enum
 	messagesByName map[protoreflect.FullName]*Message
@@ -143,7 +140,7 @@ type Options struct {
 	//   opts := &protogen.Options{
 	//     ParamFunc: flags.Set,
 	//   }
-	//   opts.Run(func(p *protogen.Plugin) error {
+	//   protogen.Run(opts, func(p *protogen.Plugin) error {
 	//     if *value { ... }
 	//   })
 	ParamFunc func(name, value string) error
@@ -398,10 +395,6 @@ func (gen *Plugin) Response() *pluginpb.CodeGeneratorResponse {
 	}
 	if gen.SupportedFeatures > 0 {
 		resp.SupportedFeatures = proto.Uint64(gen.SupportedFeatures)
-	}
-	if gen.SupportedEditionsMinimum != descriptorpb.Edition_EDITION_UNKNOWN && gen.SupportedEditionsMaximum != descriptorpb.Edition_EDITION_UNKNOWN {
-		resp.MinimumEdition = proto.Int32(int32(gen.SupportedEditionsMinimum))
-		resp.MaximumEdition = proto.Int32(int32(gen.SupportedEditionsMaximum))
 	}
 	return resp
 }

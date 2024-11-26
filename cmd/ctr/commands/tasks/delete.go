@@ -19,25 +19,24 @@ package tasks
 import (
 	gocontext "context"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/cmd/ctr/commands"
 	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 )
 
-var deleteCommand = &cli.Command{
+var deleteCommand = cli.Command{
 	Name:      "delete",
 	Usage:     "Delete one or more tasks",
 	ArgsUsage: "CONTAINER [CONTAINER, ...]",
 	Aliases:   []string{"del", "remove", "rm"},
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "force",
-			Aliases: []string{"f"},
-			Usage:   "Force delete task process",
+		cli.BoolFlag{
+			Name:  "force, f",
+			Usage: "Force delete task process",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "exec-id",
 			Usage: "Process ID to kill",
 		},
@@ -71,10 +70,10 @@ var deleteCommand = &cli.Command{
 				return err
 			}
 			if ec := status.ExitCode(); ec != 0 {
-				return cli.Exit("", int(ec))
+				return cli.NewExitError("", int(ec))
 			}
 		} else {
-			for _, target := range context.Args().Slice() {
+			for _, target := range context.Args() {
 				task, err := loadTask(ctx, client, target)
 				if err != nil {
 					if exitErr == nil {

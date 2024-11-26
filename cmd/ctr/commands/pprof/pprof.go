@@ -23,8 +23,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/containerd/containerd/v2/defaults"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd/defaults"
+	"github.com/urfave/cli"
 )
 
 type pprofDialer struct {
@@ -33,18 +33,17 @@ type pprofDialer struct {
 }
 
 // Command is the cli command for providing golang pprof outputs for containerd
-var Command = &cli.Command{
+var Command = cli.Command{
 	Name:  "pprof",
 	Usage: "Provide golang pprof outputs for containerd",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:    "debug-socket",
-			Aliases: []string{"d"},
-			Usage:   "Socket path for containerd's debug server",
-			Value:   defaults.DefaultDebugAddress,
+		cli.StringFlag{
+			Name:  "debug-socket, d",
+			Usage: "Socket path for containerd's debug server",
+			Value: defaults.DefaultDebugAddress,
 		},
 	},
-	Subcommands: []*cli.Command{
+	Subcommands: []cli.Command{
 		pprofBlockCommand,
 		pprofGoroutinesCommand,
 		pprofHeapCommand,
@@ -54,11 +53,11 @@ var Command = &cli.Command{
 	},
 }
 
-var pprofGoroutinesCommand = &cli.Command{
+var pprofGoroutinesCommand = cli.Command{
 	Name:  "goroutines",
 	Usage: "Dump goroutine stack dump",
 	Flags: []cli.Flag{
-		&cli.UintFlag{
+		cli.UintFlag{
 			Name:  "debug",
 			Usage: "Debug pprof args",
 			Value: 2,
@@ -78,11 +77,11 @@ var pprofGoroutinesCommand = &cli.Command{
 	},
 }
 
-var pprofHeapCommand = &cli.Command{
+var pprofHeapCommand = cli.Command{
 	Name:  "heap",
 	Usage: "Dump heap profile",
 	Flags: []cli.Flag{
-		&cli.UintFlag{
+		cli.UintFlag{
 			Name:  "debug",
 			Usage: "Debug pprof args",
 			Value: 0,
@@ -102,17 +101,16 @@ var pprofHeapCommand = &cli.Command{
 	},
 }
 
-var pprofProfileCommand = &cli.Command{
+var pprofProfileCommand = cli.Command{
 	Name:  "profile",
 	Usage: "CPU profile",
 	Flags: []cli.Flag{
-		&cli.DurationFlag{
-			Name:    "seconds",
-			Aliases: []string{"s"},
-			Usage:   "Duration for collection (seconds)",
-			Value:   30 * time.Second,
+		cli.DurationFlag{
+			Name:  "seconds,s",
+			Usage: "Duration for collection (seconds)",
+			Value: 30 * time.Second,
 		},
-		&cli.UintFlag{
+		cli.UintFlag{
 			Name:  "debug",
 			Usage: "Debug pprof args",
 			Value: 0,
@@ -133,17 +131,16 @@ var pprofProfileCommand = &cli.Command{
 	},
 }
 
-var pprofTraceCommand = &cli.Command{
+var pprofTraceCommand = cli.Command{
 	Name:  "trace",
 	Usage: "Collect execution trace",
 	Flags: []cli.Flag{
-		&cli.DurationFlag{
-			Name:    "seconds",
-			Aliases: []string{"s"},
-			Usage:   "Trace time (seconds)",
-			Value:   5 * time.Second,
+		cli.DurationFlag{
+			Name:  "seconds,s",
+			Usage: "Trace time (seconds)",
+			Value: 5 * time.Second,
 		},
-		&cli.UintFlag{
+		cli.UintFlag{
 			Name:  "debug",
 			Usage: "Debug pprof args",
 			Value: 0,
@@ -165,11 +162,11 @@ var pprofTraceCommand = &cli.Command{
 	},
 }
 
-var pprofBlockCommand = &cli.Command{
+var pprofBlockCommand = cli.Command{
 	Name:  "block",
 	Usage: "Goroutine blocking profile",
 	Flags: []cli.Flag{
-		&cli.UintFlag{
+		cli.UintFlag{
 			Name:  "debug",
 			Usage: "Debug pprof args",
 			Value: 0,
@@ -189,11 +186,11 @@ var pprofBlockCommand = &cli.Command{
 	},
 }
 
-var pprofThreadcreateCommand = &cli.Command{
+var pprofThreadcreateCommand = cli.Command{
 	Name:  "threadcreate",
 	Usage: "Goroutine thread creating profile",
 	Flags: []cli.Flag{
-		&cli.UintFlag{
+		cli.UintFlag{
 			Name:  "debug",
 			Usage: "Debug pprof args",
 			Value: 0,
@@ -214,7 +211,7 @@ var pprofThreadcreateCommand = &cli.Command{
 }
 
 func getPProfClient(context *cli.Context) *http.Client {
-	dialer := getPProfDialer(context.String("debug-socket"))
+	dialer := getPProfDialer(context.GlobalString("debug-socket"))
 
 	tr := &http.Transport{
 		Dial: dialer.pprofDial,

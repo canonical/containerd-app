@@ -104,7 +104,7 @@ EOF
   config.vm.provision "install-golang", type: "shell", run: "once" do |sh|
     sh.upload_path = "/tmp/vagrant-install-golang"
     sh.env = {
-        'GO_VERSION': ENV['GO_VERSION'] || "1.22.4",
+        'GO_VERSION': ENV['GO_VERSION'] || "1.22.9",
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
@@ -190,7 +190,7 @@ EOF
         source /etc/profile.d/sh.local
         set -eux -o pipefail
         cd ${GOPATH}/src/github.com/containerd/containerd
-        make BUILDTAGS="seccomp selinux no_btrfs no_devmapper no_zfs" binaries install
+        make BUILDTAGS="seccomp selinux no_aufs no_btrfs no_devmapper no_zfs" binaries install
         type containerd
         containerd --version
         chcon -v -t container_runtime_exec_t /usr/local/bin/{containerd,containerd-shim*}
@@ -257,7 +257,7 @@ EOF
         set -eux -o pipefail
         rm -rf /var/lib/containerd-test /run/containerd-test
         cd ${GOPATH}/src/github.com/containerd/containerd
-        go test -v -count=1 -race ./core/metrics/cgroups
+        go test -v -count=1 -race ./metrics/cgroups
         make integration EXTRA_TESTFLAGS="-timeout 15m -no-criu -test.v" TEST_RUNTIME=io.containerd.runc.v2 RUNC_FLAVOR=$RUNC_FLAVOR
     SHELL
   end
@@ -272,6 +272,7 @@ EOF
         'GOTESTSUM_JUNITFILE': ENV['GOTESTSUM_JUNITFILE'],
         'GOTESTSUM_JSONFILE': ENV['GOTESTSUM_JSONFILE'],
         'GITHUB_WORKSPACE': '',
+        'ENABLE_CRI_SANDBOXES': ENV['ENABLE_CRI_SANDBOXES'],
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
@@ -284,7 +285,7 @@ EOF
         cleanup
         cd ${GOPATH}/src/github.com/containerd/containerd
         # cri-integration.sh executes containerd from ./bin, not from $PATH .
-        make BUILDTAGS="seccomp selinux no_btrfs no_devmapper no_zfs" binaries bin/cri-integration.test
+        make BUILDTAGS="seccomp selinux no_aufs no_btrfs no_devmapper no_zfs" binaries bin/cri-integration.test
         chcon -v -t container_runtime_exec_t ./bin/{containerd,containerd-shim*}
         CONTAINERD_RUNTIME=io.containerd.runc.v2 ./script/test/cri-integration.sh
         cleanup

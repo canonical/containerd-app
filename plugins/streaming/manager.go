@@ -18,29 +18,28 @@ package streaming
 
 import (
 	"context"
-	"errors"
 	"sync"
 
-	"github.com/containerd/containerd/v2/core/leases"
-	"github.com/containerd/containerd/v2/core/metadata"
-	"github.com/containerd/containerd/v2/core/streaming"
-	"github.com/containerd/containerd/v2/pkg/gc"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/containerd/containerd/v2/plugins"
-	"github.com/containerd/errdefs"
-	"github.com/containerd/plugin"
-	"github.com/containerd/plugin/registry"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/gc"
+	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/metadata"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/pkg/streaming"
+	"github.com/containerd/containerd/plugin"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 func init() {
-	registry.Register(&plugin.Registration{
-		Type: plugins.StreamingPlugin,
+	plugin.Register(&plugin.Registration{
+		Type: plugin.StreamingPlugin,
 		ID:   "manager",
 		Requires: []plugin.Type{
-			plugins.MetadataPlugin,
+			plugin.MetadataPlugin,
 		},
 		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
-			md, err := ic.GetSingle(plugins.MetadataPlugin)
+			md, err := ic.Get(plugin.MetadataPlugin)
 			if err != nil {
 				return nil, err
 			}
@@ -257,12 +256,12 @@ func (cc *collectionContext) Finish() error {
 	}
 	cc.manager.rwlock.Unlock()
 
-	var errs []error
+	var errs *multierror.Error
 	for _, s := range closeStreams {
 		if err := s.Close(); err != nil {
-			errs = append(errs, err)
+			errs = multierror.Append(errs, err)
 		}
 	}
 
-	return errors.Join(errs...)
+	return errs.ErrorOrNil()
 }
