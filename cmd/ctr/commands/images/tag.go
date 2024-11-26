@@ -17,34 +17,28 @@
 package images
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/transfer/image"
-	"github.com/containerd/errdefs"
-	"github.com/distribution/reference"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/pkg/transfer/image"
 )
 
-var tagCommand = &cli.Command{
+var tagCommand = cli.Command{
 	Name:        "tag",
 	Usage:       "Tag an image",
 	ArgsUsage:   "[flags] <source_ref> <target_ref> [<target_ref>, ...]",
 	Description: `Tag an image for use in containerd.`,
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "force",
 			Usage: "Force target_ref to be created, regardless if it already exists",
 		},
-		&cli.BoolFlag{
+		cli.BoolTFlag{
 			Name:  "local",
 			Usage: "Run tag locally rather than through transfer API",
-		},
-		&cli.BoolFlag{
-			Name:  "skip-reference-check",
-			Usage: "Skip the strict check for reference names",
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -52,10 +46,10 @@ var tagCommand = &cli.Command{
 			ref = context.Args().First()
 		)
 		if ref == "" {
-			return errors.New("please provide an image reference to tag from")
+			return fmt.Errorf("please provide an image reference to tag from")
 		}
 		if context.NArg() <= 1 {
-			return errors.New("please provide an image reference to tag to")
+			return fmt.Errorf("please provide an image reference to tag to")
 		}
 
 		client, ctx, cancel, err := commands.NewClient(context)
@@ -64,13 +58,8 @@ var tagCommand = &cli.Command{
 		}
 		defer cancel()
 
-		if !context.Bool("local") {
-			for _, targetRef := range context.Args().Slice()[1:] {
-				if !context.Bool("skip-reference-check") {
-					if _, err := reference.ParseAnyReference(targetRef); err != nil {
-						return fmt.Errorf("error parsing reference: %q is not a valid repository/tag %v", targetRef, err)
-					}
-				}
+		if !context.BoolT("local") {
+			for _, targetRef := range context.Args()[1:] {
 				err = client.Transfer(ctx, image.NewStore(ref), image.NewStore(targetRef))
 				if err != nil {
 					return err
@@ -92,12 +81,7 @@ var tagCommand = &cli.Command{
 			return err
 		}
 		// Support multiple references for one command run
-		for _, targetRef := range context.Args().Slice()[1:] {
-			if !context.Bool("skip-reference-check") {
-				if _, err := reference.ParseAnyReference(targetRef); err != nil {
-					return fmt.Errorf("error parsing reference: %q is not a valid repository/tag %v", targetRef, err)
-				}
-			}
+		for _, targetRef := range context.Args()[1:] {
 			image.Name = targetRef
 			// Attempt to create the image first
 			if _, err = imageService.Create(ctx, image); err != nil {

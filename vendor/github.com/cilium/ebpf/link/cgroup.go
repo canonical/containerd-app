@@ -10,15 +10,10 @@ import (
 
 type cgroupAttachFlags uint32
 
+// cgroup attach flags
 const (
-	// Allow programs attached to sub-cgroups to override the verdict of this
-	// program.
 	flagAllowOverride cgroupAttachFlags = 1 << iota
-	// Allow attaching multiple programs to the cgroup. Only works if the cgroup
-	// has zero or more programs attached using the Multi flag. Implies override.
 	flagAllowMulti
-	// Set automatically by progAttachCgroup.Update(). Used for updating a
-	// specific given program attached in multi-mode.
 	flagReplace
 )
 
@@ -32,39 +27,29 @@ type CgroupOptions struct {
 }
 
 // AttachCgroup links a BPF program to a cgroup.
-//
-// If the running kernel doesn't support bpf_link, attempts to emulate its
-// semantics using the legacy PROG_ATTACH mechanism. If bpf_link is not
-// available, the returned [Link] will not support pinning to bpffs.
-//
-// If you need more control over attachment flags or the attachment mechanism
-// used, look at [RawAttachProgram] and [AttachRawLink] instead.
-func AttachCgroup(opts CgroupOptions) (cg Link, err error) {
+func AttachCgroup(opts CgroupOptions) (Link, error) {
 	cgroup, err := os.Open(opts.Path)
 	if err != nil {
 		return nil, fmt.Errorf("can't open cgroup: %s", err)
 	}
-	defer func() {
-		if _, ok := cg.(*progAttachCgroup); ok {
-			// Skip closing the cgroup handle if we return a valid progAttachCgroup,
-			// where the handle is retained to implement Update().
-			return
-		}
+
+	clone, err := opts.Program.Clone()
+	if err != nil {
 		cgroup.Close()
-	}()
-
-	cg, err = newLinkCgroup(cgroup, opts.Attach, opts.Program)
-	if err == nil {
-		return cg, nil
+		return nil, err
 	}
 
+	var cg Link
+	cg, err = newLinkCgroup(cgroup, opts.Attach, clone)
 	if errors.Is(err, ErrNotSupported) {
-		cg, err = newProgAttachCgroup(cgroup, opts.Attach, opts.Program, flagAllowMulti)
+		cg, err = newProgAttachCgroup(cgroup, opts.Attach, clone, flagAllowMulti)
 	}
 	if errors.Is(err, ErrNotSupported) {
-		cg, err = newProgAttachCgroup(cgroup, opts.Attach, opts.Program, flagAllowOverride)
+		cg, err = newProgAttachCgroup(cgroup, opts.Attach, clone, flagAllowOverride)
 	}
 	if err != nil {
+		cgroup.Close()
+		clone.Close()
 		return nil, err
 	}
 
@@ -82,8 +67,6 @@ var _ Link = (*progAttachCgroup)(nil)
 
 func (cg *progAttachCgroup) isLink() {}
 
-// newProgAttachCgroup attaches prog to cgroup using BPF_PROG_ATTACH.
-// cgroup and prog are retained by [progAttachCgroup].
 func newProgAttachCgroup(cgroup *os.File, attach ebpf.AttachType, prog *ebpf.Program, flags cgroupAttachFlags) (*progAttachCgroup, error) {
 	if flags&flagAllowMulti > 0 {
 		if err := haveProgAttachReplace(); err != nil {
@@ -91,24 +74,17 @@ func newProgAttachCgroup(cgroup *os.File, attach ebpf.AttachType, prog *ebpf.Pro
 		}
 	}
 
-	// Use a program handle that cannot be closed by the caller.
-	clone, err := prog.Clone()
-	if err != nil {
-		return nil, err
-	}
-
-	err = RawAttachProgram(RawAttachProgramOptions{
+	err := RawAttachProgram(RawAttachProgramOptions{
 		Target:  int(cgroup.Fd()),
-		Program: clone,
+		Program: prog,
 		Flags:   uint32(flags),
 		Attach:  attach,
 	})
 	if err != nil {
-		clone.Close()
 		return nil, fmt.Errorf("cgroup: %w", err)
 	}
 
-	return &progAttachCgroup{cgroup, clone, attach, flags}, nil
+	return &progAttachCgroup{cgroup, prog, attach, flags}, nil
 }
 
 func (cg *progAttachCgroup) Close() error {
@@ -162,7 +138,7 @@ func (cg *progAttachCgroup) Pin(string) error {
 }
 
 func (cg *progAttachCgroup) Unpin() error {
-	return fmt.Errorf("can't unpin cgroup: %w", ErrNotSupported)
+	return fmt.Errorf("can't pin cgroup: %w", ErrNotSupported)
 }
 
 func (cg *progAttachCgroup) Info() (*Info, error) {
@@ -175,7 +151,6 @@ type linkCgroup struct {
 
 var _ Link = (*linkCgroup)(nil)
 
-// newLinkCgroup attaches prog to cgroup using BPF_LINK_CREATE.
 func newLinkCgroup(cgroup *os.File, attach ebpf.AttachType, prog *ebpf.Program) (*linkCgroup, error) {
 	link, err := AttachRawLink(RawLinkOptions{
 		Target:  int(cgroup.Fd()),

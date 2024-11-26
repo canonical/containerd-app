@@ -17,7 +17,6 @@
 package plugins
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -25,39 +24,36 @@ import (
 	"text/tabwriter"
 
 	"github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	pluginutils "github.com/containerd/containerd/plugin"
 	"github.com/containerd/platforms"
-	pluginutils "github.com/containerd/plugin"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 	"google.golang.org/grpc/codes"
 )
 
 // Command is a cli command that outputs plugin information
-var Command = &cli.Command{
+var Command = cli.Command{
 	Name:    "plugins",
 	Aliases: []string{"plugin"},
 	Usage:   "Provides information about containerd plugins",
-	Subcommands: []*cli.Command{
+	Subcommands: []cli.Command{
 		listCommand,
-		inspectRuntimeCommand,
 	},
 }
 
-var listCommand = &cli.Command{
+var listCommand = cli.Command{
 	Name:    "list",
 	Aliases: []string{"ls"},
 	Usage:   "Lists containerd plugins",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "quiet",
-			Aliases: []string{"q"},
-			Usage:   "Print only the plugin ids",
+		cli.BoolFlag{
+			Name:  "quiet,q",
+			Usage: "Print only the plugin ids",
 		},
-		&cli.BoolFlag{
-			Name:    "detailed",
-			Aliases: []string{"d"},
-			Usage:   "Print detailed information about each plugin",
+		cli.BoolFlag{
+			Name:  "detailed,d",
+			Usage: "Print detailed information about each plugin",
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -71,7 +67,7 @@ var listCommand = &cli.Command{
 		}
 		defer cancel()
 		ps := client.IntrospectionService()
-		response, err := ps.Plugins(ctx, context.Args().Slice()...)
+		response, err := ps.Plugins(ctx, context.Args())
 		if err != nil {
 			return err
 		}
@@ -165,33 +161,4 @@ func prettyPlatforms(pspb []*types.Platform) string {
 	}
 	sort.Stable(sort.StringSlice(ps))
 	return strings.Join(ps, ",")
-}
-
-var inspectRuntimeCommand = &cli.Command{
-	Name:      "inspect-runtime",
-	Usage:     "Display runtime info",
-	ArgsUsage: "[flags]",
-	Flags:     commands.RuntimeFlags,
-	Action: func(context *cli.Context) error {
-		rt := context.String("runtime")
-		rtOptions, err := commands.RuntimeOptions(context)
-		if err != nil {
-			return err
-		}
-		client, ctx, cancel, err := commands.NewClient(context)
-		if err != nil {
-			return err
-		}
-		defer cancel()
-		rtInfo, err := client.RuntimeInfo(ctx, rt, rtOptions)
-		if err != nil {
-			return err
-		}
-		j, err := json.MarshalIndent(rtInfo, "", "    ")
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintln(context.App.Writer, string(j))
-		return err
-	},
 }

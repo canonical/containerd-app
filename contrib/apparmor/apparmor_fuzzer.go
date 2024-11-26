@@ -26,7 +26,6 @@ func FuzzLoadDefaultProfile(data []byte) int {
 	if err != nil {
 		return 0
 	}
-	defer f.Close()
 	defer os.Remove("fuzz_file")
 	_, err = f.Write(data)
 	if err != nil {

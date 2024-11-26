@@ -1,5 +1,4 @@
-//go:build !noasm && !appengine && gc
-// +build !noasm,!appengine,gc
+//+build !noasm,!appengine,gc
 
 /*
  * Minio Cloud Storage, (C) 2016 Minio, Inc.
@@ -19,18 +18,18 @@
 
 package sha256
 
-func blockIntelShaGo(dig *digest, p []byte) {
-	panic("blockIntelShaGo called unexpectedly")
+func blockShaGo(dig *digest, p []byte) {
+	panic("blockShaGoc called unexpectedly")
 }
 
 //go:noescape
-func blockArmSha2(h []uint32, message []uint8)
+func blockArm(h []uint32, message []uint8)
 
-func blockArmSha2Go(dig *digest, p []byte) {
+func blockArmGo(dig *digest, p []byte) {
 
 	h := []uint32{dig.h[0], dig.h[1], dig.h[2], dig.h[3], dig.h[4], dig.h[5], dig.h[6], dig.h[7]}
 
-	blockArmSha2(h[:], p[:])
+	blockArm(h[:], p[:])
 
 	dig.h[0], dig.h[1], dig.h[2], dig.h[3], dig.h[4], dig.h[5], dig.h[6], dig.h[7] = h[0], h[1], h[2], h[3], h[4],
 		h[5], h[6], h[7]

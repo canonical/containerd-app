@@ -41,13 +41,14 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"k8s.io/klog/v2"
+
+	internalapi "github.com/containerd/containerd/integration/cri-api/pkg/apis"
 	"k8s.io/component-base/logs/logreduction"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
-	"k8s.io/klog/v2"
 	utilexec "k8s.io/utils/exec"
 
-	internalapi "github.com/containerd/containerd/v2/integration/cri-api/pkg/apis"
-	"github.com/containerd/containerd/v2/integration/remote/util"
+	"github.com/containerd/containerd/integration/remote/util"
 )
 
 // RuntimeService is a gRPC implementation of internalapi.RuntimeService.
@@ -70,8 +71,10 @@ func NewRuntimeService(endpoint string, connectionTimeout time.Duration) (intern
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
+	defer cancel()
 
-	conn, err := grpc.NewClient(addr,
+	conn, err := grpc.DialContext(ctx, addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize)),
@@ -511,12 +514,12 @@ func (r *RuntimeService) UpdateRuntimeConfig(runtimeConfig *runtimeapi.RuntimeCo
 }
 
 // Status returns the status of the runtime.
-func (r *RuntimeService) Status(opts ...grpc.CallOption) (*runtimeapi.StatusResponse, error) {
+func (r *RuntimeService) Status(opts ...grpc.CallOption) (*runtimeapi.RuntimeStatus, error) {
 	klog.V(10).Infof("[RuntimeService] Status (timeout=%v)", r.timeout)
 	ctx, cancel := getContextWithTimeout(r.timeout)
 	defer cancel()
 
-	resp, err := r.runtimeClient.Status(ctx, &runtimeapi.StatusRequest{Verbose: true}, opts...)
+	resp, err := r.runtimeClient.Status(ctx, &runtimeapi.StatusRequest{}, opts...)
 	if err != nil {
 		klog.Errorf("Status from runtime service failed: %v", err)
 		return nil, err
@@ -530,16 +533,7 @@ func (r *RuntimeService) Status(opts ...grpc.CallOption) (*runtimeapi.StatusResp
 		return nil, errors.New(errorMessage)
 	}
 
-	return resp, nil
-}
-
-// RuntimeConfig returns the CgroupDriver of the runtime.
-func (r *RuntimeService) RuntimeConfig(in *runtimeapi.RuntimeConfigRequest, opts ...grpc.CallOption) (*runtimeapi.RuntimeConfigResponse, error) {
-	klog.V(10).Infof("[RuntimeService] RuntimeConfig (timeout=%v)", r.timeout)
-	ctx, cancel := getContextWithTimeout(r.timeout)
-	defer cancel()
-	runtimeConfig, err := r.runtimeClient.RuntimeConfig(ctx, in)
-	return runtimeConfig, err
+	return resp.Status, nil
 }
 
 // ContainerStats returns the stats of the container.
@@ -603,7 +597,7 @@ func (r *RuntimeService) ReopenContainerLog(containerID string, opts ...grpc.Cal
 
 // GetContainerEvents returns a GRPC client to stream container events
 func (r *RuntimeService) GetContainerEvents(ctx context.Context, request *runtimeapi.GetEventsRequest, opts ...grpc.CallOption) (runtimeapi.RuntimeService_GetContainerEventsClient, error) {
-	klog.V(10).Infof("[RuntimeService] GetContainerEvents (timeout=%v)", r.timeout)
+	klog.V(10).Infof("[RuntimeService] GetContainerEvents", r.timeout)
 
 	client, err := r.runtimeClient.GetContainerEvents(ctx, request, opts...)
 	if err != nil {

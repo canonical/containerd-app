@@ -29,19 +29,19 @@ import (
 	"strings"
 	"syscall"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/containerd/containerd/v2/pkg/oci"
-	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/oci"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
-var densityCommand = &cli.Command{
+var densityCommand = cli.Command{
 	Name:  "density",
 	Usage: "Stress tests density of containers running on a system",
 	Flags: []cli.Flag{
-		&cli.IntFlag{
+		cli.IntFlag{
 			Name:  "count",
 			Usage: "Number of containers to run",
 			Value: 10,
@@ -58,14 +58,14 @@ var densityCommand = &cli.Command{
 		}
 
 		config := config{
-			Address:     cliContext.String("address"),
-			Duration:    cliContext.Duration("duration"),
-			Concurrency: cliContext.Int("concurrent"),
-			Exec:        cliContext.Bool("exec"),
-			Image:       cliContext.String("image"),
-			JSON:        cliContext.Bool("json"),
-			Metrics:     cliContext.String("metrics"),
-			Snapshotter: cliContext.String("snapshotter"),
+			Address:     cliContext.GlobalString("address"),
+			Duration:    cliContext.GlobalDuration("duration"),
+			Concurrency: cliContext.GlobalInt("concurrent"),
+			Exec:        cliContext.GlobalBool("exec"),
+			Image:       cliContext.GlobalString("image"),
+			JSON:        cliContext.GlobalBool("json"),
+			Metrics:     cliContext.GlobalString("metrics"),
+			Snapshotter: cliContext.GlobalString("snapshotter"),
 		}
 		client, err := config.newClient()
 		if err != nil {
@@ -76,12 +76,12 @@ var densityCommand = &cli.Command{
 		if err := cleanup(ctx, client); err != nil {
 			return err
 		}
-		log.L.Infof("pulling %s", config.Image)
+		logrus.Infof("pulling %s", config.Image)
 		image, err := client.Pull(ctx, config.Image, containerd.WithPullUnpack, containerd.WithPullSnapshotter(config.Snapshotter))
 		if err != nil {
 			return err
 		}
-		log.L.Info("generating spec from image")
+		logrus.Info("generating spec from image")
 
 		s := make(chan os.Signal, 1)
 		signal.Notify(s, syscall.SIGTERM, syscall.SIGINT)

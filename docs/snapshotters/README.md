@@ -11,7 +11,7 @@ Generic:
 - `native`: Native file copying driver. Akin to Docker/Moby's "vfs" driver.
 
 Block-based:
-- [`blockfile`](./blockfile.md): A driver using raw block files for each snapshot. Block files are copied from a parent or base empty block file. Mounting requires a virtual machine or support for loopback mounts.
+- `blockfile`: A driver using raw block files for each snapshot. Block files are copied from a parent or base empty block file. Mounting requires a virtual machine or support for loopback mounts.
 - `devmapper`: ext4/xfs device mapper. See [`devmapper.md`](./devmapper.md).
 
 Filesystem-specific:
@@ -19,7 +19,7 @@ Filesystem-specific:
 - `zfs`: ZFS. Needs the plugin root (`/var/lib/containerd/io.containerd.snapshotter.v1.zfs`) to be mounted as ZFS. See also https://github.com/containerd/zfs .
 
 [Deprecated](https://github.com/containerd/containerd/blob/main/RELEASES.md#deprecated-features):
-- `aufs`: AUFS. Deprecated since containerd 1.5. Removed in containerd 2.0. See also https://github.com/containerd/aufs .
+- `aufs`: AUFS. Deprecated since containerd 1.5. Planned to be removed in containerd 2.0. See also https://github.com/containerd/aufs .
 
 ## Non-core snapshotter plugins
 
