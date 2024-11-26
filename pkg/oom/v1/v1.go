@@ -25,11 +25,10 @@ import (
 
 	"github.com/containerd/cgroups/v3/cgroup1"
 	eventstypes "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/v2/core/runtime"
-	"github.com/containerd/containerd/v2/pkg/oom"
-	"github.com/containerd/containerd/v2/pkg/shim"
-	"github.com/containerd/containerd/v2/pkg/sys"
-	"github.com/containerd/log"
+	"github.com/containerd/containerd/pkg/oom"
+	"github.com/containerd/containerd/runtime"
+	"github.com/containerd/containerd/runtime/v2/shim"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -68,31 +67,23 @@ func (e *epoller) Close() error {
 
 // Run the epoll loop
 func (e *epoller) Run(ctx context.Context) {
-	var (
-		n      int
-		err    error
-		events [128]unix.EpollEvent
-	)
+	var events [128]unix.EpollEvent
 	for {
-		err = sys.IgnoringEINTR(func() error {
-			select {
-			case <-ctx.Done():
-				e.Close()
-				return ctx.Err()
-			default:
-				n, err = unix.EpollWait(e.fd, events[:], -1)
-				return err
+		select {
+		case <-ctx.Done():
+			e.Close()
+			return
+		default:
+			n, err := unix.EpollWait(e.fd, events[:], -1)
+			if err != nil {
+				if err == unix.EINTR {
+					continue
+				}
+				logrus.WithError(err).Error("cgroups: epoll wait")
 			}
-		})
-		if err != nil {
-			if err == context.DeadlineExceeded || err == context.Canceled {
-				return
+			for i := 0; i < n; i++ {
+				e.process(ctx, uintptr(events[i].Fd))
 			}
-			log.G(ctx).WithError(err).Error("cgroups: epoll wait")
-		}
-
-		for i := 0; i < n; i++ {
-			e.process(ctx, uintptr(events[i].Fd))
 		}
 	}
 }
@@ -139,7 +130,7 @@ func (e *epoller) process(ctx context.Context, fd uintptr) {
 	if err := e.publisher.Publish(ctx, runtime.TaskOOMEventTopic, &eventstypes.TaskOOM{
 		ContainerID: i.id,
 	}); err != nil {
-		log.G(ctx).WithError(err).Error("publish OOM event")
+		logrus.WithError(err).Error("publish OOM event")
 	}
 }
 

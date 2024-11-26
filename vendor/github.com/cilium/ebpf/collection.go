@@ -9,8 +9,6 @@ import (
 
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
-	"github.com/cilium/ebpf/internal"
-	"github.com/cilium/ebpf/internal/kconfig"
 )
 
 // CollectionOptions control loading a collection into the kernel.
@@ -109,22 +107,12 @@ func (cs *CollectionSpec) RewriteMaps(maps map[string]*Map) error {
 	return nil
 }
 
-// MissingConstantsError is returned by [CollectionSpec.RewriteConstants].
-type MissingConstantsError struct {
-	// The constants missing from .rodata.
-	Constants []string
-}
-
-func (m *MissingConstantsError) Error() string {
-	return fmt.Sprintf("some constants are missing from .rodata: %s", strings.Join(m.Constants, ", "))
-}
-
 // RewriteConstants replaces the value of multiple constants.
 //
 // The constant must be defined like so in the C program:
 //
-//	volatile const type foobar;
-//	volatile const type foobar = default;
+//    volatile const type foobar;
+//    volatile const type foobar = default;
 //
 // Replacement values must be of the same length as the C sizeof(type).
 // If necessary, they are marshalled according to the same rules as
@@ -132,7 +120,7 @@ func (m *MissingConstantsError) Error() string {
 //
 // From Linux 5.5 the verifier will use constants to eliminate dead code.
 //
-// Returns an error wrapping [MissingConstantsError] if a constant doesn't exist.
+// Returns an error if a constant doesn't exist.
 func (cs *CollectionSpec) RewriteConstants(consts map[string]interface{}) error {
 	replaced := make(map[string]bool)
 
@@ -161,10 +149,6 @@ func (cs *CollectionSpec) RewriteConstants(consts map[string]interface{}) error 
 			replacement, ok := consts[vname]
 			if !ok {
 				continue
-			}
-
-			if _, ok := v.Type.(*btf.Var); !ok {
-				return fmt.Errorf("section %s: unexpected type %T for variable %s", name, v.Type, vname)
 			}
 
 			if replaced[vname] {
@@ -196,7 +180,7 @@ func (cs *CollectionSpec) RewriteConstants(consts map[string]interface{}) error 
 	}
 
 	if len(missing) != 0 {
-		return fmt.Errorf("rewrite constants: %w", &MissingConstantsError{Constants: missing})
+		return fmt.Errorf("spec is missing one or more constants: %s", strings.Join(missing, ","))
 	}
 
 	return nil
@@ -214,11 +198,11 @@ func (cs *CollectionSpec) RewriteConstants(consts map[string]interface{}) error 
 // The tag's value specifies the name of the program or map as
 // found in the CollectionSpec.
 //
-//	struct {
-//	    Foo     *ebpf.ProgramSpec `ebpf:"xdp_foo"`
-//	    Bar     *ebpf.MapSpec     `ebpf:"bar_map"`
-//	    Ignored int
-//	}
+//    struct {
+//        Foo     *ebpf.ProgramSpec `ebpf:"xdp_foo"`
+//        Bar     *ebpf.MapSpec     `ebpf:"bar_map"`
+//        Ignored int
+//    }
 //
 // Returns an error if any of the eBPF objects can't be found, or
 // if the same MapSpec or ProgramSpec is assigned multiple times.
@@ -265,11 +249,11 @@ func (cs *CollectionSpec) Assign(to interface{}) error {
 // dependent resources are loaded into the kernel and populated with values if
 // specified.
 //
-//	struct {
-//	    Foo     *ebpf.Program `ebpf:"xdp_foo"`
-//	    Bar     *ebpf.Map     `ebpf:"bar_map"`
-//	    Ignored int
-//	}
+//    struct {
+//        Foo     *ebpf.Program `ebpf:"xdp_foo"`
+//        Bar     *ebpf.Map     `ebpf:"bar_map"`
+//        Ignored int
+//    }
 //
 // opts may be nil.
 //
@@ -402,11 +386,42 @@ func NewCollectionWithOptions(spec *CollectionSpec, opts CollectionOptions) (*Co
 	}, nil
 }
 
+type handleCache struct {
+	btfHandles map[*btf.Spec]*btf.Handle
+}
+
+func newHandleCache() *handleCache {
+	return &handleCache{
+		btfHandles: make(map[*btf.Spec]*btf.Handle),
+	}
+}
+
+func (hc handleCache) btfHandle(spec *btf.Spec) (*btf.Handle, error) {
+	if hc.btfHandles[spec] != nil {
+		return hc.btfHandles[spec], nil
+	}
+
+	handle, err := btf.NewHandle(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	hc.btfHandles[spec] = handle
+	return handle, nil
+}
+
+func (hc handleCache) close() {
+	for _, handle := range hc.btfHandles {
+		handle.Close()
+	}
+}
+
 type collectionLoader struct {
 	coll     *CollectionSpec
 	opts     *CollectionOptions
 	maps     map[string]*Map
 	programs map[string]*Program
+	handles  *handleCache
 }
 
 func newCollectionLoader(coll *CollectionSpec, opts *CollectionOptions) (*collectionLoader, error) {
@@ -421,7 +436,7 @@ func newCollectionLoader(coll *CollectionSpec, opts *CollectionOptions) (*collec
 			return nil, fmt.Errorf("replacement map %s not found in CollectionSpec", name)
 		}
 
-		if err := spec.Compatible(m); err != nil {
+		if err := spec.checkCompatibility(m); err != nil {
 			return nil, fmt.Errorf("using replacement map %s: %w", spec.Name, err)
 		}
 	}
@@ -431,11 +446,13 @@ func newCollectionLoader(coll *CollectionSpec, opts *CollectionOptions) (*collec
 		opts,
 		make(map[string]*Map),
 		make(map[string]*Program),
+		newHandleCache(),
 	}, nil
 }
 
 // close all resources left over in the collectionLoader.
 func (cl *collectionLoader) close() {
+	cl.handles.close()
 	for _, m := range cl.maps {
 		m.Close()
 	}
@@ -454,6 +471,10 @@ func (cl *collectionLoader) loadMap(mapName string) (*Map, error) {
 		return nil, fmt.Errorf("missing map %s", mapName)
 	}
 
+	if mapSpec.BTF != nil && cl.coll.Types != mapSpec.BTF {
+		return nil, fmt.Errorf("map %s: BTF doesn't match collection", mapName)
+	}
+
 	if replaceMap, ok := cl.opts.MapReplacements[mapName]; ok {
 		// Clone the map to avoid closing user's map later on.
 		m, err := replaceMap.Clone()
@@ -465,7 +486,7 @@ func (cl *collectionLoader) loadMap(mapName string) (*Map, error) {
 		return m, nil
 	}
 
-	m, err := newMapWithOptions(mapSpec, cl.opts.Maps)
+	m, err := newMapWithOptions(mapSpec, cl.opts.Maps, cl.handles)
 	if err != nil {
 		return nil, fmt.Errorf("map %s: %w", mapName, err)
 	}
@@ -488,6 +509,10 @@ func (cl *collectionLoader) loadProgram(progName string) (*Program, error) {
 	// This skips loading map dependencies, saving some cleanup work later.
 	if progSpec.Type == UnspecifiedProgram {
 		return nil, fmt.Errorf("cannot load program %s: program type is unspecified", progName)
+	}
+
+	if progSpec.BTF != nil && cl.coll.Types != progSpec.BTF {
+		return nil, fmt.Errorf("program %s: BTF doesn't match collection", progName)
 	}
 
 	progSpec = progSpec.Copy()
@@ -518,7 +543,7 @@ func (cl *collectionLoader) loadProgram(progName string) (*Program, error) {
 		}
 	}
 
-	prog, err := newProgramWithOptions(progSpec, cl.opts.Programs)
+	prog, err := newProgramWithOptions(progSpec, cl.opts.Programs, cl.handles)
 	if err != nil {
 		return nil, fmt.Errorf("program %s: %w", progName, err)
 	}
@@ -534,22 +559,17 @@ func (cl *collectionLoader) populateMaps() error {
 			return fmt.Errorf("missing map spec %s", mapName)
 		}
 
+		mapSpec = mapSpec.Copy()
+
 		// MapSpecs that refer to inner maps or programs within the same
 		// CollectionSpec do so using strings. These strings are used as the key
 		// to look up the respective object in the Maps or Programs fields.
 		// Resolve those references to actual Map or Program resources that
 		// have been loaded into the kernel.
-		if mapSpec.Type.canStoreMap() || mapSpec.Type.canStoreProgram() {
-			mapSpec = mapSpec.Copy()
-
-			for i, kv := range mapSpec.Contents {
-				objName, ok := kv.Value.(string)
-				if !ok {
-					continue
-				}
-
-				switch t := mapSpec.Type; {
-				case t.canStoreProgram():
+		for i, kv := range mapSpec.Contents {
+			if objName, ok := kv.Value.(string); ok {
+				switch mapSpec.Type {
+				case ProgramArray:
 					// loadProgram is idempotent and could return an existing Program.
 					prog, err := cl.loadProgram(objName)
 					if err != nil {
@@ -557,7 +577,7 @@ func (cl *collectionLoader) populateMaps() error {
 					}
 					mapSpec.Contents[i] = MapKV{kv.Key, prog}
 
-				case t.canStoreMap():
+				case ArrayOfMaps, HashOfMaps:
 					// loadMap is idempotent and could return an existing Map.
 					innerMap, err := cl.loadMap(objName)
 					if err != nil {
@@ -573,95 +593,6 @@ func (cl *collectionLoader) populateMaps() error {
 			return fmt.Errorf("populating map %s: %w", mapName, err)
 		}
 	}
-
-	return nil
-}
-
-// resolveKconfig resolves all variables declared in .kconfig and populates
-// m.Contents. Does nothing if the given m.Contents is non-empty.
-func resolveKconfig(m *MapSpec) error {
-	ds, ok := m.Value.(*btf.Datasec)
-	if !ok {
-		return errors.New("map value is not a Datasec")
-	}
-
-	type configInfo struct {
-		offset uint32
-		typ    btf.Type
-	}
-
-	configs := make(map[string]configInfo)
-
-	data := make([]byte, ds.Size)
-	for _, vsi := range ds.Vars {
-		v := vsi.Type.(*btf.Var)
-		n := v.TypeName()
-
-		switch n {
-		case "LINUX_KERNEL_VERSION":
-			if integer, ok := v.Type.(*btf.Int); !ok || integer.Size != 4 {
-				return fmt.Errorf("variable %s must be a 32 bits integer, got %s", n, v.Type)
-			}
-
-			kv, err := internal.KernelVersion()
-			if err != nil {
-				return fmt.Errorf("getting kernel version: %w", err)
-			}
-			internal.NativeEndian.PutUint32(data[vsi.Offset:], kv.Kernel())
-
-		case "LINUX_HAS_SYSCALL_WRAPPER":
-			if integer, ok := v.Type.(*btf.Int); !ok || integer.Size != 4 {
-				return fmt.Errorf("variable %s must be a 32 bits integer, got %s", n, v.Type)
-			}
-			var value uint32 = 1
-			if err := haveSyscallWrapper(); errors.Is(err, ErrNotSupported) {
-				value = 0
-			} else if err != nil {
-				return fmt.Errorf("unable to derive a value for LINUX_HAS_SYSCALL_WRAPPER: %w", err)
-			}
-
-			internal.NativeEndian.PutUint32(data[vsi.Offset:], value)
-
-		default: // Catch CONFIG_*.
-			configs[n] = configInfo{
-				offset: vsi.Offset,
-				typ:    v.Type,
-			}
-		}
-	}
-
-	// We only parse kconfig file if a CONFIG_* variable was found.
-	if len(configs) > 0 {
-		f, err := kconfig.Find()
-		if err != nil {
-			return fmt.Errorf("cannot find a kconfig file: %w", err)
-		}
-		defer f.Close()
-
-		filter := make(map[string]struct{}, len(configs))
-		for config := range configs {
-			filter[config] = struct{}{}
-		}
-
-		kernelConfig, err := kconfig.Parse(f, filter)
-		if err != nil {
-			return fmt.Errorf("cannot parse kconfig file: %w", err)
-		}
-
-		for n, info := range configs {
-			value, ok := kernelConfig[n]
-			if !ok {
-				return fmt.Errorf("config option %q does not exists for this kernel", n)
-			}
-
-			err := kconfig.PutValue(data[info.offset:], info.typ, value)
-			if err != nil {
-				return fmt.Errorf("problem adding value for %s: %w", n, err)
-			}
-		}
-	}
-
-	m.Contents = []MapKV{{uint32(0), data}}
 
 	return nil
 }

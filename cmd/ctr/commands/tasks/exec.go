@@ -23,47 +23,46 @@ import (
 	"os"
 
 	"github.com/containerd/console"
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/containerd/v2/pkg/oci"
-	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/oci"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
-var execCommand = &cli.Command{
-	Name:      "exec",
-	Usage:     "Execute additional processes in an existing container",
-	ArgsUsage: "[flags] CONTAINER CMD [ARG...]",
+var execCommand = cli.Command{
+	Name:           "exec",
+	Usage:          "Execute additional processes in an existing container",
+	ArgsUsage:      "[flags] CONTAINER CMD [ARG...]",
+	SkipArgReorder: true,
 	Flags: []cli.Flag{
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "cwd",
 			Usage: "Working directory of the new process",
 		},
-		&cli.BoolFlag{
-			Name:    "tty",
-			Aliases: []string{"t"},
-			Usage:   "Allocate a TTY for the container",
+		cli.BoolFlag{
+			Name:  "tty,t",
+			Usage: "Allocate a TTY for the container",
 		},
-		&cli.BoolFlag{
-			Name:    "detach",
-			Aliases: []string{"d"},
-			Usage:   "Detach from the task after it has started execution",
+		cli.BoolFlag{
+			Name:  "detach,d",
+			Usage: "Detach from the task after it has started execution",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:     "exec-id",
 			Required: true,
 			Usage:    "Exec specific id for the process",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "fifo-dir",
 			Usage: "Directory used for storing IO FIFOs",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "log-uri",
 			Usage: "Log uri for custom shim logging",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "user",
 			Usage: "User id or name",
 		},
@@ -175,7 +174,7 @@ var execCommand = &cli.Command{
 		}
 		if tty {
 			if err := HandleConsoleResize(ctx, process, con); err != nil {
-				log.L.WithError(err).Error("console resize")
+				logrus.WithError(err).Error("console resize")
 			}
 		} else {
 			sigc := commands.ForwardAllSignals(ctx, process)
@@ -187,7 +186,7 @@ var execCommand = &cli.Command{
 			return err
 		}
 		if code != 0 {
-			return cli.Exit("", int(code))
+			return cli.NewExitError("", int(code))
 		}
 		return nil
 	},

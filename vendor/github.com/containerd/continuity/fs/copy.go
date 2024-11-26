@@ -103,6 +103,11 @@ func copyDirectory(dst, src string, inodes map[uint64]string, o *copyDirOpts) er
 		}
 	}
 
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", src, err)
+	}
+
 	if err := copyFileInfo(stat, src, dst); err != nil {
 		return fmt.Errorf("failed to copy file info for %s: %w", dst, err)
 	}
@@ -111,15 +116,7 @@ func copyDirectory(dst, src string, inodes map[uint64]string, o *copyDirOpts) er
 		return fmt.Errorf("failed to copy xattrs: %w", err)
 	}
 
-	f, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	dr := &dirReader{f: f}
-
-	handleEntry := func(entry os.DirEntry) error {
+	for _, entry := range entries {
 		source := filepath.Join(src, entry.Name())
 		target := filepath.Join(dst, entry.Name())
 
@@ -133,7 +130,7 @@ func copyDirectory(dst, src string, inodes map[uint64]string, o *copyDirOpts) er
 			if err := copyDirectory(target, source, inodes, o); err != nil {
 				return err
 			}
-			return nil
+			continue
 		case (fileInfo.Mode() & os.ModeType) == 0:
 			link, err := getLinkSource(target, fileInfo, inodes)
 			if err != nil {
@@ -162,7 +159,7 @@ func copyDirectory(dst, src string, inodes map[uint64]string, o *copyDirOpts) er
 			}
 		default:
 			logrus.Warnf("unsupported mode: %s: %s", source, fileInfo.Mode())
-			return nil
+			continue
 		}
 
 		if err := copyFileInfo(fileInfo, source, target); err != nil {
@@ -172,20 +169,9 @@ func copyDirectory(dst, src string, inodes map[uint64]string, o *copyDirOpts) er
 		if err := copyXAttrs(target, source, o.xex, o.xeh); err != nil {
 			return fmt.Errorf("failed to copy xattrs: %w", err)
 		}
-		return nil
 	}
 
-	for {
-		entry := dr.Next()
-		if entry == nil {
-			break
-		}
-
-		if err := handleEntry(entry); err != nil {
-			return err
-		}
-	}
-	return dr.Err()
+	return nil
 }
 
 // CopyFile copies the source file to the target.

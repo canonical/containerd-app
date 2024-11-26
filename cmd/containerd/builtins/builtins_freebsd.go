@@ -16,8 +16,4 @@
 
 package builtins
 
-// Temporarily removed while plugin package is moved, to be added back
-// before 2.0.
-//import _ "github.com/containerd/zfs/plugin"
-
-import _ "github.com/containerd/containerd/v2/plugins/diff/walking/plugin"
+import _ "github.com/containerd/zfs/plugin"

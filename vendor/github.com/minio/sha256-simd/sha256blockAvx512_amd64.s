@@ -1,4 +1,4 @@
-//+build !noasm,!appengine,gc
+//+build !noasm,!appengine
 
 TEXT ·sha256X16Avx512(SB), 7, $0
 	MOVQ  digests+0(FP), DI

@@ -24,14 +24,15 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/errdefs"
 )
 
 // Command is the cli command for managing namespaces
-var Command = &cli.Command{
+var Command = cli.Command{
 	Name:    "namespaces",
 	Aliases: []string{"namespace", "ns"},
 	Usage:   "Manage namespaces",
@@ -43,7 +44,7 @@ var Command = &cli.Command{
 	},
 }
 
-var createCommand = &cli.Command{
+var createCommand = cli.Command{
 	Name:        "create",
 	Aliases:     []string{"c"},
 	Usage:       "Create a new namespace",
@@ -64,7 +65,7 @@ var createCommand = &cli.Command{
 	},
 }
 
-var setLabelsCommand = &cli.Command{
+var setLabelsCommand = cli.Command{
 	Name:        "label",
 	Usage:       "Set and clear labels for a namespace",
 	ArgsUsage:   "<name> [<key>=<value>, ...]",
@@ -89,17 +90,16 @@ var setLabelsCommand = &cli.Command{
 	},
 }
 
-var listCommand = &cli.Command{
+var listCommand = cli.Command{
 	Name:        "list",
 	Aliases:     []string{"ls"},
 	Usage:       "List namespaces",
 	ArgsUsage:   "[flags]",
 	Description: "list namespaces",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "quiet",
-			Aliases: []string{"q"},
-			Usage:   "Print only the namespace name",
+		cli.BoolFlag{
+			Name:  "quiet, q",
+			Usage: "Print only the namespace name",
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -142,17 +142,16 @@ var listCommand = &cli.Command{
 	},
 }
 
-var removeCommand = &cli.Command{
+var removeCommand = cli.Command{
 	Name:        "remove",
 	Aliases:     []string{"rm"},
 	Usage:       "Remove one or more namespaces",
 	ArgsUsage:   "<name> [<name>, ...]",
 	Description: "remove one or more namespaces. for now, the namespace must be empty",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "cgroup",
-			Aliases: []string{"c"},
-			Usage:   "Delete the namespace's cgroup",
+		cli.BoolFlag{
+			Name:  "cgroup,c",
+			Usage: "Delete the namespace's cgroup",
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -165,7 +164,7 @@ var removeCommand = &cli.Command{
 
 		opts := deleteOpts(context)
 		namespaces := client.NamespaceService()
-		for _, target := range context.Args().Slice() {
+		for _, target := range context.Args() {
 			if err := namespaces.Delete(ctx, target, opts...); err != nil {
 				if !errdefs.IsNotFound(err) {
 					if exitErr == nil {

@@ -24,10 +24,10 @@ import (
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
-	"github.com/containerd/containerd/v2/internal/cri/server"
-	"github.com/containerd/containerd/v2/internal/cri/server/images"
-	containerstore "github.com/containerd/containerd/v2/internal/cri/store/container"
-	sandboxstore "github.com/containerd/containerd/v2/internal/cri/store/sandbox"
+	"github.com/containerd/containerd/pkg/cri/sbserver"
+	"github.com/containerd/containerd/pkg/cri/server"
+	containerstore "github.com/containerd/containerd/pkg/cri/store/container"
+	sandboxstore "github.com/containerd/containerd/pkg/cri/store/sandbox"
 )
 
 var (
@@ -80,13 +80,7 @@ func printExecutions() {
 	}
 }
 
-type fuzzCRIService interface {
-	server.CRIService
-	runtime.RuntimeServiceServer
-	runtime.ImageServiceServer
-}
-
-func fuzzCRI(f *fuzz.ConsumeFuzzer, c fuzzCRIService) int {
+func fuzzCRI(f *fuzz.ConsumeFuzzer, c server.CRIService) int {
 	executionOrder = make([]string, 0)
 	defer printExecutions()
 
@@ -163,7 +157,7 @@ func logExecution(apiName, request string) {
 
 // createContainerFuzz creates a CreateContainerRequest and passes
 // it to c.CreateContainer
-func createContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func createContainerFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.CreateContainerRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -177,7 +171,7 @@ func createContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // removeContainerFuzz creates a RemoveContainerRequest and passes
 // it to c.RemoveContainer
-func removeContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func removeContainerFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.RemoveContainerRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -189,7 +183,7 @@ func removeContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 	return nil
 }
 
-func sandboxStore(cs fuzzCRIService) (*sandboxstore.Store, error) {
+func sandboxStore(cs server.CRIService) (*sandboxstore.Store, error) {
 	var (
 		ss  *sandboxstore.Store
 		err error
@@ -197,7 +191,7 @@ func sandboxStore(cs fuzzCRIService) (*sandboxstore.Store, error) {
 
 	ss, err = server.SandboxStore(cs)
 	if err != nil {
-		ss, err = server.SandboxStore(cs)
+		ss, err = sbserver.SandboxStore(cs)
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +201,7 @@ func sandboxStore(cs fuzzCRIService) (*sandboxstore.Store, error) {
 }
 
 // addSandboxesFuzz creates a sandbox and adds it to the sandboxstore
-func addSandboxesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func addSandboxesFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	quantity, err := f.GetInt()
 	if err != nil {
 		return err
@@ -252,7 +246,7 @@ func getSandboxFuzz(f *fuzz.ConsumeFuzzer) (sandboxstore.Sandbox, error) {
 
 // listContainersFuzz creates a ListContainersRequest and passes
 // it to c.ListContainers
-func listContainersFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func listContainersFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ListContainersRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -266,7 +260,7 @@ func listContainersFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // startContainerFuzz creates a StartContainerRequest and passes
 // it to c.StartContainer
-func startContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func startContainerFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.StartContainerRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -280,7 +274,7 @@ func startContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // containerStatsFuzz creates a ContainerStatsRequest and passes
 // it to c.ContainerStats
-func containerStatsFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func containerStatsFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ContainerStatsRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -294,7 +288,7 @@ func containerStatsFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // listContainerStatsFuzz creates a ListContainerStatsRequest and
 // passes it to c.ListContainerStats
-func listContainerStatsFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func listContainerStatsFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ListContainerStatsRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -308,7 +302,7 @@ func listContainerStatsFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // containerStatusFuzz creates a ContainerStatusRequest and passes
 // it to c.ContainerStatus
-func containerStatusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func containerStatusFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ContainerStatusRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -322,7 +316,7 @@ func containerStatusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // stopContainerFuzz creates a StopContainerRequest and passes
 // it to c.StopContainer
-func stopContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func stopContainerFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.StopContainerRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -336,7 +330,7 @@ func stopContainerFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // updateContainerResourcesFuzz creates a UpdateContainerResourcesRequest
 // and passes it to c.UpdateContainerResources
-func updateContainerResourcesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func updateContainerResourcesFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.UpdateContainerResourcesRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -350,7 +344,7 @@ func updateContainerResourcesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error
 
 // listImagesFuzz creates a ListImagesRequest and passes it to
 // c.ListImages
-func listImagesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func listImagesFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ListImagesRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -364,7 +358,7 @@ func listImagesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // removeImagesFuzz creates a RemoveImageRequest and passes it to
 // c.RemoveImage
-func removeImagesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func removeImagesFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.RemoveImageRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -378,7 +372,7 @@ func removeImagesFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // imageStatusFuzz creates an ImageStatusRequest and passes it to
 // c.ImageStatus
-func imageStatusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func imageStatusFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ImageStatusRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -392,7 +386,7 @@ func imageStatusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // imageFsInfoFuzz creates an ImageFsInfoRequest and passes it to
 // c.ImageFsInfo
-func imageFsInfoFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func imageFsInfoFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ImageFsInfoRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -406,7 +400,7 @@ func imageFsInfoFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // listPodSandboxFuzz creates a ListPodSandboxRequest and passes
 // it to c.ListPodSandbox
-func listPodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func listPodSandboxFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.ListPodSandboxRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -420,7 +414,7 @@ func listPodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // portForwardFuzz creates a PortForwardRequest and passes it to
 // c.PortForward
-func portForwardFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func portForwardFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.PortForwardRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -434,7 +428,7 @@ func portForwardFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // removePodSandboxFuzz creates a RemovePodSandboxRequest and
 // passes it to c.RemovePodSandbox
-func removePodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func removePodSandboxFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.RemovePodSandboxRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -448,7 +442,7 @@ func removePodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // runPodSandboxFuzz creates a RunPodSandboxRequest and passes
 // it to c.RunPodSandbox
-func runPodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func runPodSandboxFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.RunPodSandboxRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -462,7 +456,7 @@ func runPodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // podSandboxStatusFuzz creates a PodSandboxStatusRequest and
 // passes it to
-func podSandboxStatusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func podSandboxStatusFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.PodSandboxStatusRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -476,7 +470,7 @@ func podSandboxStatusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 
 // stopPodSandboxFuzz creates a StopPodSandboxRequest and passes
 // it to c.StopPodSandbox
-func stopPodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func stopPodSandboxFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.StopPodSandboxRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -489,7 +483,7 @@ func stopPodSandboxFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 }
 
 // statusFuzz creates a StatusRequest and passes it to c.Status
-func statusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func statusFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.StatusRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -501,7 +495,7 @@ func statusFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
 	return nil
 }
 
-func updateRuntimeConfigFuzz(c fuzzCRIService, f *fuzz.ConsumeFuzzer) error {
+func updateRuntimeConfigFuzz(c server.CRIService, f *fuzz.ConsumeFuzzer) error {
 	r := &runtime.UpdateRuntimeConfigRequest{}
 	err := f.GenerateStruct(r)
 	if err != nil {
@@ -541,6 +535,6 @@ func FuzzParseAuth(data []byte) int {
 	if err != nil {
 		return 0
 	}
-	_, _, _ = images.ParseAuth(auth, host)
+	_, _, _ = server.ParseAuth(auth, host)
 	return 1
 }

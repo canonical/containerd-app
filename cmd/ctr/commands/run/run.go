@@ -24,34 +24,30 @@ import (
 	"strings"
 
 	"github.com/containerd/console"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/cmd/ctr/commands/tasks"
+	"github.com/containerd/containerd/containers"
+	clabels "github.com/containerd/containerd/labels"
+	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/urfave/cli/v2"
-
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands/tasks"
-	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	clabels "github.com/containerd/containerd/v2/pkg/labels"
-	"github.com/containerd/containerd/v2/pkg/oci"
-	"github.com/containerd/errdefs"
-	"github.com/containerd/log"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 func withMounts(context *cli.Context) oci.SpecOpts {
 	return func(ctx gocontext.Context, client oci.Client, container *containers.Container, s *specs.Spec) error {
 		mounts := make([]specs.Mount, 0)
-		dests := make([]string, 0)
 		for _, mount := range context.StringSlice("mount") {
 			m, err := parseMountFlag(mount)
 			if err != nil {
 				return err
 			}
 			mounts = append(mounts, m)
-			dests = append(dests, m.Destination)
 		}
-		return oci.Compose(oci.WithoutMounts(dests...), oci.WithMounts(mounts))(ctx, client, container, s)
+		return oci.WithMounts(mounts)(ctx, client, container, s)
 	}
 }
 
@@ -68,7 +64,7 @@ func parseMountFlag(m string) (specs.Mount, error) {
 	for _, field := range fields {
 		key, val, ok := strings.Cut(field, "=")
 		if !ok {
-			return mount, errors.New("invalid mount specification: expected key=val")
+			return mount, fmt.Errorf("invalid mount specification: expected key=val")
 		}
 
 		switch key {
@@ -89,48 +85,47 @@ func parseMountFlag(m string) (specs.Mount, error) {
 }
 
 // Command runs a container
-var Command = &cli.Command{
-	Name:      "run",
-	Usage:     "Run a container",
-	ArgsUsage: "[flags] Image|RootFS ID [COMMAND] [ARG...]",
+var Command = cli.Command{
+	Name:           "run",
+	Usage:          "Run a container",
+	ArgsUsage:      "[flags] Image|RootFS ID [COMMAND] [ARG...]",
+	SkipArgReorder: true,
 	Flags: append([]cli.Flag{
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "rm",
 			Usage: "Remove the container after running, cannot be used with --detach",
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "null-io",
 			Usage: "Send all IO to /dev/null",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "log-uri",
 			Usage: "Log uri",
 		},
-		&cli.BoolFlag{
-			Name:    "detach",
-			Aliases: []string{"d"},
-			Usage:   "Detach from the task after it has started execution, cannot be used with --rm",
+		cli.BoolFlag{
+			Name:  "detach,d",
+			Usage: "Detach from the task after it has started execution, cannot be used with --rm",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "fifo-dir",
 			Usage: "Directory used for storing IO FIFOs",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "cgroup",
 			Usage: "Cgroup path (To disable use of cgroup, set to \"\" explicitly)",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "platform",
 			Usage: "Run image for specific platform",
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "cni",
 			Usage: "Enable cni networking for the container",
 		},
 	}, append(platformRunFlags,
-		append(commands.RuntimeFlags,
-			append(append(commands.SnapshotterFlags, []cli.Flag{commands.SnapshotterLabels}...),
-				commands.ContainerFlags...)...)...)...),
+		append(append(commands.SnapshotterFlags, []cli.Flag{commands.SnapshotterLabels}...),
+			commands.ContainerFlags...)...)...),
 	Action: func(context *cli.Context) error {
 		var (
 			err error
@@ -175,11 +170,7 @@ var Command = &cli.Command{
 			return err
 		}
 		if rm && !detach {
-			defer func() {
-				if err := container.Delete(ctx, containerd.WithSnapshotCleanup); err != nil {
-					log.L.WithError(err).Error("failed to cleanup container")
-				}
-			}()
+			defer container.Delete(ctx, containerd.WithSnapshotCleanup)
 		}
 		var con console.Console
 		if tty {
@@ -208,13 +199,10 @@ var Command = &cli.Command{
 			defer func() {
 				if enableCNI {
 					if err := network.Remove(ctx, commands.FullID(ctx, container), ""); err != nil {
-						log.L.WithError(err).Error("failed to remove network")
+						logrus.WithError(err).Error("network review")
 					}
 				}
-
-				if _, err := task.Delete(ctx, containerd.WithProcessKill); err != nil && !errdefs.IsNotFound(err) {
-					log.L.WithError(err).Error("failed to cleanup task")
-				}
+				task.Delete(ctx)
 			}()
 
 			if statusC, err = task.Wait(ctx); err != nil {
@@ -244,7 +232,7 @@ var Command = &cli.Command{
 		}
 		if tty {
 			if err := tasks.HandleConsoleResize(ctx, task, con); err != nil {
-				log.L.WithError(err).Error("console resize")
+				logrus.WithError(err).Error("console resize")
 			}
 		} else {
 			sigc := commands.ForwardAllSignals(ctx, task)
@@ -259,7 +247,7 @@ var Command = &cli.Command{
 			return err
 		}
 		if code != 0 {
-			return cli.Exit("", int(code))
+			return cli.NewExitError("", int(code))
 		}
 		return nil
 	},
@@ -274,7 +262,7 @@ func buildLabels(cmdLabels, imageLabels map[string]string) map[string]string {
 		} else {
 			// In case the image label is invalid, we output a warning and skip adding it to the
 			// container.
-			log.L.WithError(err).Warnf("unable to add image label with key %s to the container", k)
+			logrus.WithError(err).Warnf("unable to add image label with key %s to the container", k)
 		}
 	}
 	// labels from the command line will override image and the initial image config labels

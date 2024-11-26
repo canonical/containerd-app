@@ -1,5 +1,5 @@
 version = "2"
-generators = ["go", "go-grpc", "go-ttrpc"]
+generators = ["go", "go-grpc"]
 
 # Control protoc include paths. Below are usually some good defaults, but feel
 # free to try it without them if it works for your project.
@@ -18,32 +18,21 @@ generators = ["go", "go-grpc", "go-ttrpc"]
 [packages]
   "google/rpc/status.proto" = "google.golang.org/genproto/googleapis/rpc/status"
 
-[parameters.go-ttrpc]
-prefix = "TTRPC"
-
 [[overrides]]
 prefixes = ["github.com/containerd/containerd/api/events"]
 generators = ["go", "go-ttrpc", "go-fieldpath"]
 
-[overrides.parameters.go-ttrpc]
-prefix = ""
-
 [[overrides]]
 prefixes = ["github.com/containerd/containerd/api/services/ttrpc/events/v1"]
-generators = ["go", "go-ttrpc"]
-
-[overrides.parameters.go-ttrpc]
-prefix = ""
+generators = ["go", "go-ttrpc", "go-fieldpath"]
 
 [[overrides]]
 # enable ttrpc and disable fieldpath and grpc for the shim
 prefixes = [
+  "github.com/containerd/containerd/runtime/v1/shim/v1",
   "github.com/containerd/containerd/api/runtime/task/v2",
 ]
 generators = ["go", "go-ttrpc"]
-
-[overrides.parameters.go-ttrpc]
-prefix = ""
 
 [[overrides]]
 prefixes = [
@@ -51,11 +40,17 @@ prefixes = [
 ]
 generators = ["go", "go-ttrpc", "go-grpc"]
 
+[overrides.parameters.go-ttrpc]
+prefix = "TTRPC"
+
 [[overrides]]
 prefixes = [
   "github.com/containerd/containerd/api/runtime/task/v3",
 ]
 generators = ["go", "go-ttrpc", "go-grpc"]
+
+[overrides.parameters.go-ttrpc]
+prefix = "TTRPC"
 
 # Aggregrate the API descriptors to lock down API changes.
 [[descriptors]]

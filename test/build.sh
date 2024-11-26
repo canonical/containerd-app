@@ -32,10 +32,7 @@ cd "${ROOT}"
 make clean
 
 # Build CRI+CNI release
-make BUILDTAGS="seccomp no_btrfs no_devmapper no_zfs" cri-cni-release
-
-# DEPLOY_DIR is the directory in the gcs bucket to store the tarball.
-DEPLOY_DIR=${DEPLOY_DIR:-""}
+make BUILDTAGS="seccomp no_aufs no_btrfs no_devmapper no_zfs" cri-cni-release
 
 BUILDDIR=$(mktemp -d)
 cleanup() {
@@ -48,7 +45,7 @@ trap cleanup EXIT
 
 set -x
 latest=$(readlink ./releases/cri-cni-containerd.tar.gz)
-tarball=$(echo "${latest}" | sed -e 's/cri-containerd-cni/containerd-cni/g' | sed -e 's/-linux-amd64/.linux-amd64/g')
+tarball=$(echo "${latest}" | sed -e 's/cri-containerd-cni/containerd-cni/g' | sed -e 's/-linux-/.linux-/g')
 cp "releases/${latest}" "${BUILDDIR}/${tarball}"
 cp "releases/${latest}.sha256sum" "${BUILDDIR}/${tarball}.sha256"
 

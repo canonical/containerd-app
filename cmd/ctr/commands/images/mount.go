@@ -17,22 +17,21 @@
 package images
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/leases"
-	"github.com/containerd/containerd/v2/core/mount"
-	"github.com/containerd/containerd/v2/defaults"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/image-spec/identity"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/mount"
 )
 
-var mountCommand = &cli.Command{
+var mountCommand = cli.Command{
 	Name:      "mount",
 	Usage:     "Mount an image to a target path",
 	ArgsUsage: "[flags] <ref> <target>",
@@ -41,14 +40,14 @@ var mountCommand = &cli.Command{
 When you are done, use the unmount command.
 `,
 	Flags: append(append(commands.RegistryFlags, append(commands.SnapshotterFlags, commands.LabelFlag)...),
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "rw",
 			Usage: "Enable write support on the mount",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "platform",
 			Usage: "Mount the image for the specified platform",
-			Value: platforms.DefaultString(),
+			Value: platforms.Format(platforms.DefaultSpec()), // For 1.7 continue using the old format without os-version included.
 		},
 	),
 	Action: func(context *cli.Context) (retErr error) {
@@ -57,10 +56,10 @@ When you are done, use the unmount command.
 			target = context.Args().Get(1)
 		)
 		if ref == "" {
-			return errors.New("please provide an image reference to mount")
+			return fmt.Errorf("please provide an image reference to mount")
 		}
 		if target == "" {
-			return errors.New("please provide a target path to mount to")
+			return fmt.Errorf("please provide a target path to mount to")
 		}
 
 		client, ctx, cancel, err := commands.NewClient(context)
@@ -71,13 +70,15 @@ When you are done, use the unmount command.
 
 		snapshotter := context.String("snapshotter")
 		if snapshotter == "" {
-			snapshotter = defaults.DefaultSnapshotter
+			snapshotter = containerd.DefaultSnapshotter
 		}
 
 		ctx, done, err := client.WithLease(ctx,
 			leases.WithID(target),
 			leases.WithExpiration(24*time.Hour),
-			leases.WithLabel("containerd.io/gc.ref.snapshot."+snapshotter, target),
+			leases.WithLabels(map[string]string{
+				"containerd.io/gc.ref.snapshot." + snapshotter: target,
+			}),
 		)
 		if err != nil && !errdefs.IsAlreadyExists(err) {
 			return err

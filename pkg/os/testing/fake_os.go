@@ -20,9 +20,9 @@ import (
 	"os"
 	"sync"
 
-	containerdmount "github.com/containerd/containerd/v2/core/mount"
+	containerdmount "github.com/containerd/containerd/mount"
 
-	osInterface "github.com/containerd/containerd/v2/pkg/os"
+	osInterface "github.com/containerd/containerd/pkg/os"
 )
 
 // CalledDetail is the struct contains called function name and arguments.

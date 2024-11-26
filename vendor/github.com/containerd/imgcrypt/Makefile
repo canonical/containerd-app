@@ -18,7 +18,7 @@ DESTDIR ?= /usr/local
 
 VERSION=$(shell git describe --match 'v[0-9]*' --dirty='.m' --always)
 
-CTR_LDFLAGS=-ldflags '-X github.com/containerd/containerd/v2/version.Version=$(VERSION)'
+CTR_LDFLAGS=-ldflags '-X github.com/containerd/containerd/version.Version=$(VERSION)'
 COMMANDS=ctd-decoder ctr-enc
 RELEASE_COMMANDS=ctd-decoder
 
@@ -34,10 +34,10 @@ build: $(BINARIES)
 FORCE:
 
 bin/ctd-decoder: cmd/ctd-decoder FORCE
-	cd cmd && go build -o ../$@ -v ./ctd-decoder/
+	go build -o $@ -v ./cmd/ctd-decoder/
 
 bin/ctr-enc: cmd/ctr FORCE
-	cd cmd && go build -o ../$@ ${CTR_LDFLAGS} -v ./ctr/
+	go build -o $@ ${CTR_LDFLAGS} -v ./cmd/ctr/
 
 check:
 	@echo "$@"

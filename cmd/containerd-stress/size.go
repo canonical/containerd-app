@@ -18,34 +18,27 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
-	"github.com/containerd/log"
+	"github.com/sirupsen/logrus"
 )
 
-const defaultPath = "/usr/local/bin/"
-
 var binaries = []string{
-	defaultPath + "ctr",
-	defaultPath + "containerd",
-	defaultPath + "containerd-shim",
-	defaultPath + "containerd-shim-runc-v1",
-	defaultPath + "containerd-shim-runc-v2",
+	"ctr",
+	"containerd",
+	"containerd-shim",
+	"containerd-shim-runc-v1",
+	"containerd-shim-runc-v2",
 }
 
 // checkBinarySizes checks and reports the binary sizes for the containerd compiled binaries to prometheus
 func checkBinarySizes() {
 	for _, name := range binaries {
-		fi, err := os.Stat(name)
+		fi, err := os.Stat(filepath.Join("/usr/local/bin", name))
 		if err != nil {
-			log.L.WithError(err).Error("stat binary")
+			logrus.WithError(err).Error("stat binary")
 			continue
 		}
-
-		if fi.IsDir() {
-			log.L.Error(name, "is not a file")
-			continue
-		}
-
 		binarySizeGauge.WithValues(name).Set(float64(fi.Size()))
 	}
 }

@@ -20,14 +20,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/images/converter"
-	"github.com/containerd/containerd/v2/core/images/converter/uncompress"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/images/converter"
+	"github.com/containerd/containerd/images/converter/uncompress"
 	"github.com/containerd/platforms"
-	"github.com/urfave/cli/v2"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/urfave/cli"
 )
 
-var convertCommand = &cli.Command{
+var convertCommand = cli.Command{
 	Name:      "convert",
 	Usage:     "Convert an image",
 	ArgsUsage: "[flags] <source_ref> <target_ref>",
@@ -40,21 +41,21 @@ When '--all-platforms' is given all images in a manifest list must be available.
 `,
 	Flags: []cli.Flag{
 		// generic flags
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "uncompress",
 			Usage: "Convert tar.gz layers to uncompressed tar layers",
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "oci",
 			Usage: "Convert Docker media types to OCI media types",
 		},
 		// platform flags
-		&cli.StringSliceFlag{
+		cli.StringSliceFlag{
 			Name:  "platform",
 			Usage: "Pull content from a specific platform",
-			Value: cli.NewStringSlice(),
+			Value: &cli.StringSlice{},
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "all-platforms",
 			Usage: "Exports content from all platforms",
 		},
@@ -69,9 +70,13 @@ When '--all-platforms' is given all images in a manifest list must be available.
 
 		if !context.Bool("all-platforms") {
 			if pss := context.StringSlice("platform"); len(pss) > 0 {
-				all, err := platforms.ParseAll(pss)
-				if err != nil {
-					return err
+				var all []ocispec.Platform
+				for _, ps := range pss {
+					p, err := platforms.Parse(ps)
+					if err != nil {
+						return fmt.Errorf("invalid platform %q: %w", ps, err)
+					}
+					all = append(all, p)
 				}
 				convertOpts = append(convertOpts, converter.WithPlatform(platforms.Ordered(all...)))
 			} else {
