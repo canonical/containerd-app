@@ -4,6 +4,8 @@ containerd-app (1.7.24-0ubuntu1~24.04.1) noble; urgency=medium
   * New 1.7.24 upstream version. (LP: #2089704)
   * d/containerd.postinst: notify that a reboot is required to reload the
     AppArmor profile. (LP: #2065423)
+  * d/p/{0001-...,0002-...}: restore the version of these patches which
+    applies to 1.7.x.
 
  -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 11 Oct 2024 16:19:07 -0300
 
