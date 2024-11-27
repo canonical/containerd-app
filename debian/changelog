@@ -6,6 +6,8 @@ containerd-app (1.7.24-0ubuntu1~20.04.1) focal; urgency=medium
   * d/p/ftbfs-riscv-timeout.patch: increase test timeouts to avoid FTBFS
     issues in riscv64 builds.
   * d/control: BuildDepends on procps. It is missing for riscv64 in focal.
+  * d/p/{0001-...,0002-...}: restore the version of these patches which
+    applies to 1.7.x.
 
  -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 11 Oct 2024 16:36:50 -0300
 
