@@ -18,4 +18,4 @@
 
 package builtins
 
-import _ "github.com/containerd/zfs/plugin"
+import _ "github.com/containerd/zfs/v2/plugin"

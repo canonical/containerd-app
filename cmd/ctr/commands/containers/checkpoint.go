@@ -20,40 +20,40 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cmd/ctr/commands"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/urfave/cli"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/containerd/errdefs"
+	"github.com/urfave/cli/v2"
 )
 
-var checkpointCommand = cli.Command{
+var checkpointCommand = &cli.Command{
 	Name:      "checkpoint",
 	Usage:     "Checkpoint a container",
 	ArgsUsage: "CONTAINER REF",
 	Flags: []cli.Flag{
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "rw",
 			Usage: "Include the rw layer in the checkpoint",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "image",
 			Usage: "Include the image in the checkpoint",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "task",
 			Usage: "Checkpoint container task",
 		},
 	},
-	Action: func(context *cli.Context) error {
-		id := context.Args().First()
+	Action: func(cliContext *cli.Context) error {
+		id := cliContext.Args().First()
 		if id == "" {
 			return errors.New("container id must be provided")
 		}
-		ref := context.Args().Get(1)
+		ref := cliContext.Args().Get(1)
 		if ref == "" {
 			return errors.New("ref must be provided")
 		}
-		client, ctx, cancel, err := commands.NewClient(context)
+		client, ctx, cancel, err := commands.NewClient(cliContext)
 		if err != nil {
 			return err
 		}
@@ -62,13 +62,13 @@ var checkpointCommand = cli.Command{
 			containerd.WithCheckpointRuntime,
 		}
 
-		if context.Bool("image") {
+		if cliContext.Bool("image") {
 			opts = append(opts, containerd.WithCheckpointImage)
 		}
-		if context.Bool("rw") {
+		if cliContext.Bool("rw") {
 			opts = append(opts, containerd.WithCheckpointRW)
 		}
-		if context.Bool("task") {
+		if cliContext.Bool("task") {
 			opts = append(opts, containerd.WithCheckpointTask)
 		}
 		container, err := client.LoadContainer(ctx, id)
