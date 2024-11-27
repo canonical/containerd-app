@@ -1,6 +1,7 @@
-containerd-app (1.7.19-0ubuntu1~20.04.1) focal; urgency=medium
+containerd-app (1.7.24-0ubuntu1~20.04.1) focal; urgency=medium
 
-  * Backport from oracular to focal. (LP: #2040461)
+  * Backport version 1.7.19-0ubuntu3 from plucky to focal. (LP: #2040461)
+  * New 1.7.24 upstream version. (LP: #2089704)
   * d/rules: fix path of the containerd systemd service file.
   * d/p/ftbfs-riscv-timeout.patch: increase test timeouts to avoid FTBFS
     issues in riscv64 builds.
