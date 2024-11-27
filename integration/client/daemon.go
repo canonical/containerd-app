@@ -28,8 +28,9 @@ import (
 	"syscall"
 	"time"
 
-	. "github.com/containerd/containerd"
-	"github.com/containerd/containerd/plugin"
+	"github.com/containerd/plugin"
+
+	. "github.com/containerd/containerd/v2/client"
 )
 
 type daemon struct {
@@ -81,7 +82,7 @@ func (d *daemon) waitForStart(ctx context.Context) (*Client, error) {
 				}
 				continue
 			}
-			resp, perr := client.IntrospectionService().Plugins(ctx, nil)
+			resp, perr := client.IntrospectionService().Plugins(ctx)
 			if perr != nil {
 				return nil, fmt.Errorf("failed to get plugin list: %w", perr)
 			}

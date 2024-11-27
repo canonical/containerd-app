@@ -13,7 +13,7 @@ use to integrate to and interact with NRI and plugins. In principle
 any NRI plugin should be able to work with NRI-enabled runtimes.
 
 For a detailed description of NRI and its capabilities please take a
-look at the [NRI respository](https://github.com/containerd/nri).
+look at the [NRI repository](https://github.com/containerd/nri).
 
 ## Containerd NRI Integration
 
@@ -23,8 +23,8 @@ look at the [NRI respository](https://github.com/containerd/nri).
 </details>
 
 NRI support in containerd is split into two parts both logically and
-physically. These parts are a common plugin (/nri/*) to integrate to
-NRI and CRI-specific bits (/pkg/cri/server/nri-api) which convert
+physically. These parts are a common plugin (`/internal/nri/*`) to integrate to
+NRI and CRI-specific bits (`/internal/cri/nri`) which convert
 data between the runtime-agnostic NRI representation and the internal
 representation of the CRI plugin.
 
@@ -42,30 +42,28 @@ an external NRI plugin needs to be applied to a container within containerd. `Do
 
 The containerd CRI plugin registers itself as an above mentioned NRI
 Domain for the "k8s.io" namespace, to allow container configuration to be customized by external
-NRI plugins. Currently this Domain interface is only implemented for
-the original CRI `pkg/cri/server` implementation. Implementing it for
-the more recent experimental `pkg/cri/sbserver` implementation is on
-the TODO list.
+NRI plugins.
 
 ### NRI Support for Other Container 'Domains'
 
 The main reason for this split of functionality is to allow
  NRI plugins for other types of sandboxes and for other container clients other than just for CRI containers in the "k8s.io" namespace.
 
-## Enabling NRI Support in Containerd
+## Disabling NRI Support in Containerd
 
 Enabling and disabling NRI support in containerd happens by enabling or
-disabling the common containerd NRI plugin. The plugin, and consequently
-NRI functionality, is disabled by default. It can be enabled by editing
-the `[plugins."io.containerd.nri.v1.nri"]` section in the containerd
-configuration file, which by default is `/etc/containerd/config.toml`,
-and changing `disable = true` to `disable = false`. Once enabled, the
-NRI section should look something like this:
+disabling the common containerd NRI plugin. Starting with containerd 2.0
+The plugin, and consequently NRI functionality, is enabled by default.
+It can be disabled by editing the `[plugins."io.containerd.nri.v1.nri"]`
+section in the containerd configuration file, which by default is
+`/etc/containerd/config.toml`, and changing `disable = false` to
+`disable = true`. The NRI section to disable NRI functionality should
+look something like this:
 
 ```toml
   [plugins."io.containerd.nri.v1.nri"]
-    # Enable NRI support in containerd.
-    disable = false
+    # Disable NRI support in containerd.
+    disable = true
     # Allow connections from externally launched NRI plugins.
     disable_connections = false
     # plugin_config_path is the directory to search for plugin-specific configuration.
@@ -74,7 +72,7 @@ NRI section should look something like this:
     plugin_path = "/opt/nri/plugins"
     # plugin_registration_timeout is the timeout for a plugin to register after connection.
     plugin_registration_timeout = "5s"
-    # plugin_requst_timeout is the timeout for a plugin to handle an event/request.
+    # plugin_request_timeout is the timeout for a plugin to handle an event/request.
     plugin_request_timeout = "2s"
     # socket_path is the path of the NRI socket to create for plugins to connect to.
     socket_path = "/var/run/nri/nri.sock"
@@ -115,7 +113,6 @@ on github, compiling it and starting it up.
 ```bash
 git clone https://github.com/containerd/nri
 cd nri
-git checkout pr/proto/draft
 make
 ./build/bin/logger -idx 00
 ```
