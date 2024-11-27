@@ -3,6 +3,8 @@ containerd-app (1.7.24-0ubuntu1~22.04.1) jammy; urgency=medium
   * Backport version 1.7.19-0ubuntu3 from plucky to jammy. (LP: #2040461)
   * New 1.7.24 upstream version. (LP: #2089704)
   * d/rules: fix path of the containerd systemd service file.
+  * d/p/{0001-...,0002-...}: restore the version of these patches which
+    applies to 1.7.x.
 
  -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 11 Oct 2024 16:30:33 -0300
 
