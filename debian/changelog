@@ -1,3 +1,9 @@
+containerd-app (2.0.0-0ubuntu1~24.10.1) oracular; urgency=medium
+
+  * Backport from plucky to oracular.
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Tue, 26 Nov 2024 21:04:59 -0300
+
 containerd-app (2.0.0-0ubuntu1) plucky; urgency=medium
 
   * New upstream version 2.0.0. (LP: #2089704)
