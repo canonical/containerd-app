@@ -1,3 +1,9 @@
+containerd-app (2.0.0-0ubuntu1) plucky; urgency=medium
+
+  * New upstream version 2.0.0. (LP: #2089704)
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Tue, 26 Nov 2024 21:03:03 -0300
+
 containerd-app (1.7.19-0ubuntu3) plucky; urgency=medium
 
   * d/copyright: remove orphan entry from copyright. The entry was added back
