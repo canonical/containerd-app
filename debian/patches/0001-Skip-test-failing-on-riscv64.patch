@@ -2,7 +2,7 @@ From: Lucas Kanashiro <kanashiro@ubuntu.com>
 Date: Wed, 21 Jun 2023 16:35:33 -0300
 Subject: Skip test failing on riscv64
 
-Last-Updated: 2024-06-04
+Last-Updated: 2023-06-13
 Forwarded: not-needed
 
 This tests is consistently failing on riscv64 and it does not seem to be a real
@@ -12,14 +12,14 @@ regression.
  1 file changed, 1 insertion(+)
 
 diff --git a/pkg/epoch/epoch_test.go b/pkg/epoch/epoch_test.go
-index 501fd3e..7926a59 100644
+index f25c77e..d8ac139 100644
 --- a/pkg/epoch/epoch_test.go
 +++ b/pkg/epoch/epoch_test.go
-@@ -70,6 +70,7 @@ func TestSourceDateEpoch(t *testing.T) {
+@@ -79,6 +79,7 @@ func TestSourceDateEpoch(t *testing.T) {
  	})
  
  	t.Run("WithInvalidSourceDateEpoch", func(t *testing.T) {
 +		t.Skip("This test is failing on riscv64")
- 		const invalidValue = "foo"
- 		t.Setenv(SourceDateEpochEnv, invalidValue)
+ 		t.Setenv(SourceDateEpochEnv, "foo")
  
+ 		vp, err := SourceDateEpoch()

@@ -3,22 +3,19 @@ Date: Wed, 21 Jun 2023 16:35:33 -0300
 Subject: Skip tests which require a certain level of privilege
 
 Forwarded: not-needed
-Last-Updated: 2024-06-04
+Last-Updated: 2023-06-12
 
 During build we cannot bindmount sysfs and cgroupfs in a chroot which leads to
 failures.
 ---
- internal/cri/server/container_create_linux_test.go |  13 +
- .../container_update_resources_linux_test.go       |   1 +
- pkg/cri/server/container_create_test.go            | 467 +++++++++++++++++++++
- 3 files changed, 481 insertions(+)
- create mode 100644 pkg/cri/server/container_create_test.go
+ pkg/cri/server/container_create_linux_test.go           | 13 +++++++++++++
+ pkg/cri/server/container_create_test.go                 |  3 +++
+ pkg/cri/server/container_update_resources_linux_test.go |  1 +
+ 3 files changed, 17 insertions(+)
 
-diff --git a/internal/cri/server/container_create_linux_test.go b/internal/cri/server/container_create_linux_test.go
-index 521d795..4d86d61 100644
---- a/internal/cri/server/container_create_linux_test.go
-+++ b/internal/cri/server/container_create_linux_test.go
-@@ -194,6 +194,7 @@ func getCreateContainerTestData() (*runtime.ContainerConfig, *runtime.PodSandbox
+--- a/pkg/cri/server/container_create_linux_test.go
++++ b/pkg/cri/server/container_create_linux_test.go
+@@ -194,6 +194,7 @@
  }
  
  func TestContainerCapabilities(t *testing.T) {
@@ -26,7 +23,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -281,6 +282,7 @@ func TestContainerCapabilities(t *testing.T) {
+@@ -274,6 +275,7 @@
  }
  
  func TestContainerSpecTty(t *testing.T) {
@@ -34,7 +31,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -303,6 +305,7 @@ func TestContainerSpecTty(t *testing.T) {
+@@ -296,6 +298,7 @@
  }
  
  func TestContainerSpecDefaultPath(t *testing.T) {
@@ -42,7 +39,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -325,6 +328,7 @@ func TestContainerSpecDefaultPath(t *testing.T) {
+@@ -318,6 +321,7 @@
  }
  
  func TestContainerSpecReadonlyRootfs(t *testing.T) {
@@ -50,7 +47,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -342,6 +346,7 @@ func TestContainerSpecReadonlyRootfs(t *testing.T) {
+@@ -335,6 +339,7 @@
  }
  
  func TestContainerSpecWithExtraMounts(t *testing.T) {
@@ -58,7 +55,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -391,6 +396,7 @@ func TestContainerSpecWithExtraMounts(t *testing.T) {
+@@ -396,6 +401,7 @@
  }
  
  func TestContainerAndSandboxPrivileged(t *testing.T) {
@@ -66,7 +63,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -446,6 +452,7 @@ func TestContainerAndSandboxPrivileged(t *testing.T) {
+@@ -612,6 +618,7 @@
  }
  
  func TestPrivilegedBindMount(t *testing.T) {
@@ -74,7 +71,7 @@ index 521d795..4d86d61 100644
  	testPid := uint32(1234)
  	c := newTestCRIService()
  	testSandboxID := "sandbox-id"
-@@ -609,6 +616,7 @@ func TestMountPropagation(t *testing.T) {
+@@ -763,6 +770,7 @@
  }
  
  func TestPidNamespace(t *testing.T) {
@@ -82,7 +79,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testPid := uint32(1234)
  	testSandboxID := "sandbox-id"
-@@ -845,6 +853,7 @@ func TestUserNamespace(t *testing.T) {
+@@ -981,6 +989,7 @@
  }
  
  func TestNoDefaultRunMount(t *testing.T) {
@@ -90,7 +87,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testPid := uint32(1234)
  	testSandboxID := "sandbox-id"
-@@ -1196,6 +1205,7 @@ func TestGenerateApparmorSpecOpts(t *testing.T) {
+@@ -1286,6 +1295,7 @@
  }
  
  func TestMaskedAndReadonlyPaths(t *testing.T) {
@@ -98,7 +95,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -1294,6 +1304,7 @@ func TestMaskedAndReadonlyPaths(t *testing.T) {
+@@ -1375,6 +1385,7 @@
  }
  
  func TestHostname(t *testing.T) {
@@ -106,7 +103,7 @@ index 521d795..4d86d61 100644
  	testID := "test-id"
  	testSandboxID := "sandbox-id"
  	testContainerName := "container-name"
-@@ -1589,6 +1600,7 @@ func TestNonRootUserAndDevices(t *testing.T) {
+@@ -1654,6 +1665,7 @@
  }
  
  func TestPrivilegedDevices(t *testing.T) {
@@ -114,19 +111,43 @@ index 521d795..4d86d61 100644
  	testPid := uint32(1234)
  	c := newTestCRIService()
  	testSandboxID := "sandbox-id"
-@@ -1680,6 +1692,7 @@ func TestPrivilegedDevices(t *testing.T) {
+@@ -1738,6 +1750,7 @@
  }
  
  func TestBaseOCISpec(t *testing.T) {
 +	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	c := newTestCRIService()
  	baseLimit := int64(100)
- 	c := newTestCRIService(withRuntimeService(&fakeRuntimeService{
- 		ocispecs: map[string]*oci.Spec{
-diff --git a/internal/cri/server/container_update_resources_linux_test.go b/internal/cri/server/container_update_resources_linux_test.go
-index 1e3132b..1d27487 100644
---- a/internal/cri/server/container_update_resources_linux_test.go
-+++ b/internal/cri/server/container_update_resources_linux_test.go
-@@ -30,6 +30,7 @@ import (
+ 	c.baseOCISpecs = map[string]*oci.Spec{
+--- a/pkg/cri/server/container_create_test.go
++++ b/pkg/cri/server/container_create_test.go
+@@ -56,6 +56,7 @@
+ const testImageName = "container-image-name"
+ 
+ func TestGeneralContainerSpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	testID := "test-id"
+ 	testPid := uint32(1234)
+ 	containerConfig, sandboxConfig, imageConfig, specCheck := getCreateContainerTestData()
+@@ -69,6 +70,7 @@
+ }
+ 
+ func TestPodAnnotationPassthroughContainerSpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	switch goruntime.GOOS {
+ 	case "darwin":
+ 		t.Skip("not implemented on Darwin")
+@@ -282,6 +284,7 @@
+ }
+ 
+ func TestContainerAnnotationPassthroughContainerSpec(t *testing.T) {
++	t.Skip("It requires HugeTLB controller enabled which requires mounting cgroupfs. Not achievable during the build.")
+ 	switch goruntime.GOOS {
+ 	case "darwin":
+ 		t.Skip("not implemented on Darwin")
+--- a/pkg/cri/server/container_update_resources_linux_test.go
++++ b/pkg/cri/server/container_update_resources_linux_test.go
+@@ -30,6 +30,7 @@
  )
  
  func TestUpdateOCILinuxResource(t *testing.T) {
