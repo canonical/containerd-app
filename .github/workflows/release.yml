@@ -160,6 +160,6 @@ jobs:
             builds/release-tars-**/*
           make_latest: false
       - name: Attest Artifacts
-        uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+        uses: actions/attest-build-provenance@c4fbc648846ca6f503a13a2281a5e7b98aa57202 # v2.0.1
         with:
           subject-path: ./builds/release-tars-**/*.tar.gz
