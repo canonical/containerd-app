@@ -1,3 +1,14 @@
+containerd-app (2.0.2-0ubuntu1) plucky; urgency=medium
+
+  * New upstream version 2.0.2 (LP: #2085187, #2076166)
+  * d/control:
+    - build with golang 1.24 (LP: #2098664)
+    - add missing B-D on procps
+  * d/rules: add golang 1.24 to PATH
+  * d/copyright: update copyright data
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Mon, 17 Feb 2025 10:52:33 -0300
+
 containerd-app (2.0.0-0ubuntu1) plucky; urgency=medium
 
   * New upstream version 2.0.0. (LP: #2089704)
