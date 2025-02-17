@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !linux
 
 /*
    Copyright The containerd Authors.
@@ -16,15 +16,16 @@
    limitations under the License.
 */
 
-package platforms
+package server
 
 import (
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"context"
+
+	containerd "github.com/containerd/containerd/v2/client"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
-// NewMatcher returns the default Matcher for containerd
-func newDefaultMatcher(platform specs.Platform) Matcher {
-	return &matcher{
-		Platform: Normalize(platform),
-	}
+// updateContainerIOOwner updates I/O files' owner to align with initial processe's UID/GID.
+func updateContainerIOOwner(ctx context.Context, cntr containerd.Container, config *runtime.ContainerConfig) ([]containerd.NewTaskOpts, error) {
+	return nil, nil
 }
