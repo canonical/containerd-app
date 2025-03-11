@@ -14,8 +14,8 @@ export GOCACHE := $(CURDIR)/.gocache
 # https://blog.golang.org/go116-module-changes (TODO figure out a new solution for Go 1.17+)
 export GO111MODULE := auto
 
-# Build with Golang 1.22
-export PATH := /usr/lib/go-1.22/bin:$(PATH)
+# Build with Golang 1.24
+export PATH := /usr/lib/go-1.24/bin:$(PATH)
 
 execute_before_dh_gencontrol:
 	# use "dh_golang" to generate "misc:Built-Using" (via "go list")

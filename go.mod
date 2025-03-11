@@ -18,21 +18,21 @@ require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/errdefs/pkg v0.3.0
 	github.com/containerd/fifo v1.1.0
-	github.com/containerd/go-cni v1.1.10
+	github.com/containerd/go-cni v1.1.11
 	github.com/containerd/go-runc v1.1.0
 	github.com/containerd/imgcrypt/v2 v2.0.0-rc.1
 	github.com/containerd/log v0.1.0
 	github.com/containerd/nri v0.8.0
-	github.com/containerd/otelttrpc v0.0.0-20240305015340-ea5083fda723
-	github.com/containerd/platforms v1.0.0-rc.0
+	github.com/containerd/otelttrpc v0.1.0
+	github.com/containerd/platforms v1.0.0-rc.1
 	github.com/containerd/plugin v1.0.0
-	github.com/containerd/ttrpc v1.2.6
-	github.com/containerd/typeurl/v2 v2.2.2
+	github.com/containerd/ttrpc v1.2.7
+	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/containerd/zfs/v2 v2.0.0-rc.0
 	github.com/containernetworking/cni v1.2.3
 	github.com/containernetworking/plugins v1.5.1
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+	github.com/davecgh/go-spew v1.1.1
 	github.com/distribution/reference v0.6.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c
 	github.com/docker/go-metrics v0.0.1
@@ -59,7 +59,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.3
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tchap/go-patricia/v2 v2.3.1
 	github.com/urfave/cli/v2 v2.27.5
 	github.com/vishvananda/netlink v1.3.0
@@ -119,7 +119,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -150,4 +150,19 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 	tags.cncf.io/container-device-interface/specs-go v0.8.0 // indirect
+)
+
+exclude (
+	// These dependencies were updated to "master" in some modules we depend on,
+	// but have no code-changes since their last release. Unfortunately, this also
+	// causes a ripple effect, forcing all users of the containerd module to also
+	// update these dependencies to an unrelease / un-tagged version.
+	//
+	// Both these dependencies will unlikely do a new release in the near future,
+	// so exclude these versions so that we can downgrade to the current release.
+	//
+	// For additional details, see this PR and links mentioned in that PR:
+	// https://github.com/kubernetes-sigs/kustomize/pull/5830#issuecomment-2569960859
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 )
