@@ -1,3 +1,12 @@
+containerd-app (1.7.24-0ubuntu1~24.04.2) noble-security; urgency=medium
+
+  * SECURITY UPDATE: Integer overflow.
+    - debian/patches/CVE-2024-40635.patch: Add maxUserID and maxGroupID with
+      limitations in ./oci/spec_opts.go.
+    - CVE-2024-40635
+
+ -- Hlib Korzhynskyy <hlib.korzhynskyy@canonical.com>  Mon, 24 Mar 2025 14:34:54 -0230
+
 containerd-app (1.7.24-0ubuntu1~24.04.1) noble; urgency=medium
 
   * Backport version 1.7.19-0ubuntu3 from plucky to noble. (LP: #2040461)
