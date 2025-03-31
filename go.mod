@@ -1,7 +1,6 @@
 module github.com/containerd/containerd/v2
 
 go 1.22.0
-
 require (
 	dario.cat/mergo v1.0.1
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
@@ -63,7 +62,7 @@ require (
 	github.com/tchap/go-patricia/v2 v2.3.1
 	github.com/urfave/cli/v2 v2.27.5
 	github.com/vishvananda/netlink v1.3.0
-	go.etcd.io/bbolt v1.3.11
+	go.etcd.io/bbolt v1.4.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.56.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0
 	go.opentelemetry.io/otel v1.31.0
@@ -73,8 +72,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.31.0
 	go.opentelemetry.io/otel/trace v1.31.0
 	golang.org/x/mod v0.21.0
-	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.26.0
+	golang.org/x/sync v0.10.0
+	golang.org/x/sys v0.29.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241021214115-324edc3d5d38
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
