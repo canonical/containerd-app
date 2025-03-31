@@ -2,6 +2,8 @@ module github.com/containerd/containerd/v2
 
 go 1.22.0
 
+toolchain go1.24.1
+
 require (
 	dario.cat/mergo v1.0.1
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
@@ -77,7 +79,7 @@ require (
 	golang.org/x/sys v0.26.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241021214115-324edc3d5d38
 	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.36.6
 	k8s.io/apimachinery v0.31.2
 	k8s.io/client-go v0.31.2
 	k8s.io/component-base v0.31.2
