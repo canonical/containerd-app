@@ -463,6 +463,8 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 		sandboxCreateNetworkTimer.UpdateSince(netStart)
 	}
 
+	defer c.nri.BlockPluginSync().Unblock()
+
 	err = c.nri.RunPodSandbox(ctx, &sandbox)
 	if err != nil {
 		return nil, fmt.Errorf("NRI RunPodSandbox failed: %w", err)
@@ -695,7 +697,7 @@ func selectPodIPs(ctx context.Context, configs []*cni.IPConfig, preference strin
 		}
 	case "ipv6":
 		for i, ip := range configs {
-			if ip.IP.To16() != nil {
+			if ip.IP.To4() == nil {
 				return ipString(ip), append(extra, toStrings(configs[i+1:])...)
 			}
 			extra = append(extra, ipString(ip))
