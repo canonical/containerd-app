@@ -21,12 +21,12 @@ package devmapper
 import (
 	"context"
 	_ "crypto/sha256"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/containerd/continuity/fs/fstest"
-	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
@@ -145,9 +145,10 @@ func TestMultipleXfsMounts(t *testing.T) {
 
 	poolName := fmt.Sprintf("containerd-snapshotter-suite-pool-%d", time.Now().Nanosecond())
 	config := &Config{
-		RootPath:       t.TempDir(),
-		PoolName:       poolName,
-		BaseImageSize:  "16Mb",
+		RootPath: t.TempDir(),
+		PoolName: poolName,
+		// Size for xfs volume is kept at 300Mb because xfsprogs 5.19.0 (>=ubuntu 24.04) enforces a minimum volume size
+		BaseImageSize:  "300Mb",
 		FileSystemType: "xfs",
 	}
 	snapshotter, closer, err := createSnapshotter(ctx, t, config)
@@ -199,11 +200,11 @@ func createSnapshotter(ctx context.Context, t *testing.T, config *Config) (snaps
 
 	// Remove device mapper pool and detach loop devices after test completes
 	removePool := func() error {
-		result := multierror.Append(
+		result := errors.Join(
 			snap.pool.RemovePool(ctx),
 			mount.DetachLoopDevice(loopDataDevice, loopMetaDevice))
 
-		return result.ErrorOrNil()
+		return result
 	}
 
 	// Pool cleanup should be called before closing metadata store (as we need to retrieve device names)
