@@ -1,11 +1,11 @@
-containerd-app (2.0.2-0ubuntu1~24.10.1) oracular; urgency=medium
+containerd-app (2.0.2-0ubuntu2) plucky; urgency=medium
 
-  * Backport from plucky to oracular (LP: #2085187)
-  * d/control: build with golang 1.22 for consistency across the supported
-    releaes.
-  * d/rules: add golang 1.22 to PATH
+  * SECURITY UPDATE: Integer overflow.
+    - debian/patches/CVE-2024-40635.patch: Add maxUserID and maxGroupID with
+      limitations in ./pkg/oci/spec_opts.go.
+    - CVE-2024-40635
 
- -- Athos Ribeiro <athos.ribeiro@canonical.com>  Tue, 18 Mar 2025 16:20:13 -0300
+ -- Hlib Korzhynskyy <hlib.korzhynskyy@canonical.com>  Tue, 25 Mar 2025 14:31:52 -0230
 
 containerd-app (2.0.2-0ubuntu1) plucky; urgency=medium
 
