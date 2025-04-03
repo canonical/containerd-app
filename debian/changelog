@@ -1,3 +1,10 @@
+containerd-app (1.7.27-0ubuntu1~22.04.1) jammy; urgency=medium
+
+  * New upstream version 1.7.27. (LP: #2085187)
+  * d/p/CVE-2024-40635.patch: drop patch applied upstream
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 03 Apr 2025 13:13:56 -0300
+
 containerd-app (1.7.24-0ubuntu1~22.04.2) jammy-security; urgency=medium
 
   * SECURITY UPDATE: Integer overflow.
