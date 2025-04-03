@@ -31,6 +31,7 @@ import (
 	cgroupsv2 "github.com/containerd/cgroups/v3/cgroup2"
 	eventstypes "github.com/containerd/containerd/api/events"
 	taskAPI "github.com/containerd/containerd/api/runtime/task/v2"
+	"github.com/containerd/containerd/api/types/runc/options"
 	"github.com/containerd/containerd/api/types/task"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
@@ -43,7 +44,6 @@ import (
 	"github.com/containerd/containerd/protobuf"
 	ptypes "github.com/containerd/containerd/protobuf/types"
 	"github.com/containerd/containerd/runtime/v2/runc"
-	"github.com/containerd/containerd/runtime/v2/runc/options"
 	"github.com/containerd/containerd/runtime/v2/shim"
 	"github.com/containerd/containerd/sys/reaper"
 	runcC "github.com/containerd/go-runc"
@@ -366,6 +366,9 @@ func (s *service) Delete(ctx context.Context, r *taskAPI.DeleteRequest) (*taskAP
 			ExitStatus:  uint32(p.ExitStatus()),
 			ExitedAt:    protobuf.ToTimestamp(p.ExitedAt()),
 		})
+		s.lifecycleMu.Lock()
+		delete(s.containerInitExit, container)
+		s.lifecycleMu.Unlock()
 	}
 	return &taskAPI.DeleteResponse{
 		ExitStatus: uint32(p.ExitStatus()),
