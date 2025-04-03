@@ -1,3 +1,12 @@
+containerd-app (2.0.2-0ubuntu2~24.10.1) oracular; urgency=medium
+
+  * Backport from plucky to oracular (LP: #2085187)
+  * d/control: build with golang 1.22 for consistency across the supported
+    release.
+  * d/rules: add golang 1.22 to PATH
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 03 Apr 2025 09:37:15 -0300
+
 containerd-app (2.0.2-0ubuntu2) plucky; urgency=medium
 
   * SECURITY UPDATE: Integer overflow.
