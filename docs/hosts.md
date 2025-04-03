@@ -33,14 +33,6 @@ been **DEPRECATED**._ You should now point your registry `config_path` to the pa
 `hosts.toml` files are located.
 
 Modify your `config.toml` (default location: `/etc/containerd/config.toml`) as follows:
-+ In containerd 2.x
-```
-version = 3
-
-[plugins."io.containerd.cri.v1.images".registry]
-   config_path = "/etc/containerd/certs.d"
-```
-+ In containerd 1.x
 ```toml
 version = 2
 
@@ -88,18 +80,12 @@ The `/v2` portion of the pull request format shown above refers to the version o
 distribution api. If not included in the pull request, `/v2` is added by default for all
 clients compliant to the distribution specification linked above.
 
-If a host is configured that's different to the registry host namespace (e.g. a mirror), then
-containerd will append the registry host namespace to requests as a query parameter called `ns`.
-
-For example when pulling `image_name:tag_name` from a private registry named `myregistry.io` over
+For example when pulling image_name:tag from a private registry named myregistry.io over
 port 5000:
 ```
-pull myregistry.io:5000/image_name:tag_name
+pull myregistry.io:5000/image_name:tag
 ```
-The pull will resolve to `https://myregistry.io:5000/v2/image_name/manifests/tag_name`.
-
-The same pull with a host configuration for `mymirror.io` will resolve to
-`https://mymirror.io/v2/image_name/manifests/tag_name?ns=myregistry.io:5000`.
+The pull will resolve to `https://myregistry.io:5000/v2/image_name:tag`
 
 ## Specifying Registry Credentials
 
@@ -176,9 +162,6 @@ server = "https://registry-1.docker.io"    # Exclude this to not use upstream
 
 ### Setup Default Mirror for All Registries
 
-This is an example of using a mirror regardless of the intended registry.
-The upstream registry will automatically be used after all defined hosts have been tried.
-
 ```
 $ tree /etc/containerd/certs.d
 /etc/containerd/certs.d
@@ -186,16 +169,10 @@ $ tree /etc/containerd/certs.d
     └── hosts.toml
 
 $ cat /etc/containerd/certs.d/_default/hosts.toml
+server = "https://registry.example.com"
+
 [host."https://registry.example.com"]
   capabilities = ["pull", "resolve"]
-```
-
-If you wish to ensure *only* the mirror is utilised and the upstream not consulted, set the mirror as the `server` instead of a host.
-You may still specify additional hosts if you'd like to use other mirrors first.
-
-```
-$ cat /etc/containerd/certs.d/_default/hosts.toml
-server = "https://registry.example.com"
 ```
 
 ### Bypass TLS Verification Example
@@ -222,14 +199,8 @@ apply to the registry host namespace:
 to the `hosts.toml` file.
 
 ## server field
-
-`server` specifies the default server for this registry host namespace.
-
-When `host`(s) are specified, the hosts will be tried first in the order listed.
-If all `host`(s) are tried then `server` will be used as a fallback.
-
-If `server` is not specified then the image's registry host namespace will automatically be used.
-
+`server` specifies the default server for this registry host namespace. When
+`host`(s) are specified, the hosts are tried first in the order listed.
 ```
 server = "https://docker.io"
 ```
@@ -341,7 +312,7 @@ override_path = true
 
 ## host field(s) (in the toml table format)
 
-`[host]."https://namespace"` and `[host]."http://namespace"` entries in the
+`[host]."https://namespace"` and `[host].http://namespace` entries in the
 `hosts.toml` configuration are registry namespaces used in lieu of the default
 registry host namespace. These hosts are sometimes called mirrors because they
 may contain a copy of the container images and artifacts you are attempting to

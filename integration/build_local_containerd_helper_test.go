@@ -23,49 +23,46 @@ import (
 	"testing"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	ctrdsrv "github.com/containerd/containerd/v2/cmd/containerd/server"
-	srvconfig "github.com/containerd/containerd/v2/cmd/containerd/server/config"
-	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/internal/cri/constants"
-	"github.com/containerd/containerd/v2/plugins"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/pkg/cri/constants"
+	"github.com/containerd/containerd/plugin"
+	ctrdsrv "github.com/containerd/containerd/services/server"
+	srvconfig "github.com/containerd/containerd/services/server/config"
 	"github.com/containerd/log/logtest"
 	"github.com/containerd/platforms"
-	"github.com/containerd/plugin"
 	"github.com/opencontainers/go-digest"
 
 	_ "github.com/containerd/containerd/api/types/runc/options"
-	_ "github.com/containerd/containerd/v2/core/runtime/v2"
-	_ "github.com/containerd/containerd/v2/plugins/content/local/plugin"
-	_ "github.com/containerd/containerd/v2/plugins/cri/images"
-	_ "github.com/containerd/containerd/v2/plugins/cri/runtime"
-	_ "github.com/containerd/containerd/v2/plugins/diff/walking/plugin"
-	_ "github.com/containerd/containerd/v2/plugins/events"
-	_ "github.com/containerd/containerd/v2/plugins/gc"
-	_ "github.com/containerd/containerd/v2/plugins/leases"
-	_ "github.com/containerd/containerd/v2/plugins/metadata"
-	_ "github.com/containerd/containerd/v2/plugins/services/containers"
-	_ "github.com/containerd/containerd/v2/plugins/services/content"
-	_ "github.com/containerd/containerd/v2/plugins/services/diff"
-	_ "github.com/containerd/containerd/v2/plugins/services/events"
-	_ "github.com/containerd/containerd/v2/plugins/services/images"
-	_ "github.com/containerd/containerd/v2/plugins/services/introspection"
-	_ "github.com/containerd/containerd/v2/plugins/services/leases"
-	_ "github.com/containerd/containerd/v2/plugins/services/namespaces"
-	_ "github.com/containerd/containerd/v2/plugins/services/snapshots"
-	_ "github.com/containerd/containerd/v2/plugins/services/tasks"
-	_ "github.com/containerd/containerd/v2/plugins/services/version"
+	_ "github.com/containerd/containerd/diff/walking/plugin"
+	"github.com/containerd/containerd/events/exchange"
+	_ "github.com/containerd/containerd/events/plugin"
+	_ "github.com/containerd/containerd/gc/scheduler"
+	_ "github.com/containerd/containerd/leases/plugin"
+	_ "github.com/containerd/containerd/metadata/plugin"
+	_ "github.com/containerd/containerd/runtime/v2"
+	_ "github.com/containerd/containerd/services/containers"
+	_ "github.com/containerd/containerd/services/content"
+	_ "github.com/containerd/containerd/services/diff"
+	_ "github.com/containerd/containerd/services/events"
+	_ "github.com/containerd/containerd/services/images"
+	_ "github.com/containerd/containerd/services/introspection"
+	_ "github.com/containerd/containerd/services/leases"
+	_ "github.com/containerd/containerd/services/namespaces"
+	_ "github.com/containerd/containerd/services/snapshots"
+	_ "github.com/containerd/containerd/services/tasks"
+	_ "github.com/containerd/containerd/services/version"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
 	loadPluginOnce   sync.Once
-	loadedPlugins    []plugin.Registration
+	loadedPlugins    []*plugin.Registration
 	loadedPluginsErr error
 )
 
-type tweakPluginInitFunc func(t *testing.T, p plugin.Registration) plugin.Registration
+type tweakPluginInitFunc func(t *testing.T, p *plugin.Registration) *plugin.Registration
 
 // buildLocalContainerdClient is to return containerd client with initialized
 // core plugins in local.
@@ -75,11 +72,14 @@ func buildLocalContainerdClient(t *testing.T, tmpDir string, tweakInitFn tweakPl
 	// load plugins
 	loadPluginOnce.Do(func() {
 		loadedPlugins, loadedPluginsErr = ctrdsrv.LoadPlugins(ctx, &srvconfig.Config{})
-		require.NoError(t, loadedPluginsErr)
+		assert.NoError(t, loadedPluginsErr)
 	})
 
 	// init plugins
 	var (
+		// TODO: Remove this in 2.0 and let event plugin crease it
+		events = exchange.NewExchange()
+
 		initialized = plugin.NewPluginSet()
 
 		// NOTE: plugin.Set doesn't provide the way to get all the same
@@ -97,17 +97,17 @@ func buildLocalContainerdClient(t *testing.T, tmpDir string, tweakInitFn tweakPl
 	for _, p := range loadedPlugins {
 		initContext := plugin.NewContext(
 			ctx,
+			p,
 			initialized,
-			map[string]string{
-				plugins.PropertyRootDir:  filepath.Join(config.Root, p.URI()),
-				plugins.PropertyStateDir: filepath.Join(config.State, p.URI()),
-			},
+			config.Root,
+			config.State,
 		)
+		initContext.Events = events
 
 		// load the plugin specific configuration if it is provided
 		if p.Config != nil {
-			pc, err := config.Decode(ctx, p.URI(), p.Config)
-			require.NoError(t, err)
+			pc, err := config.Decode(p)
+			assert.NoError(t, err)
 
 			initContext.Config = pc
 		}
@@ -117,10 +117,10 @@ func buildLocalContainerdClient(t *testing.T, tmpDir string, tweakInitFn tweakPl
 		}
 
 		result := p.Init(initContext)
-		require.NoError(t, initialized.Add(result))
+		assert.NoError(t, initialized.Add(result))
 
 		_, err := result.Instance()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		lastInitContext = initContext
 	}
@@ -131,13 +131,13 @@ func buildLocalContainerdClient(t *testing.T, tmpDir string, tweakInitFn tweakPl
 		containerd.WithDefaultPlatform(platforms.Default()),
 		containerd.WithInMemoryServices(lastInitContext),
 	)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	return client
 }
 
 func tweakContentInitFnWithDelayer(commitDelayDuration time.Duration) tweakPluginInitFunc {
-	return func(t *testing.T, p plugin.Registration) plugin.Registration {
+	return func(t *testing.T, p *plugin.Registration) *plugin.Registration {
 		if p.URI() != "io.containerd.content.v1.content" {
 			return p
 		}

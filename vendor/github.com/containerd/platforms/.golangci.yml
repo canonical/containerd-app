@@ -1,6 +1,6 @@
 linters:
   enable:
-    - copyloopvar
+    - exportloopref # Checks for pointers to enclosing loop variables
     - gofmt
     - goimports
     - gosec
@@ -12,16 +12,14 @@ linters:
     - tenv # Detects using os.Setenv instead of t.Setenv since Go 1.17
     - unconvert
     - unused
-    - govet
+    - vet
     - dupword # Checks for duplicate words in the source code
   disable:
     - errcheck
 
 run:
   timeout: 5m
-
-issues:
-  exclude-dirs:
+  skip-dirs:
     - api
     - cluster
     - design

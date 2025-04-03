@@ -22,11 +22,10 @@ import (
 	"time"
 
 	v1 "github.com/containerd/containerd/api/services/ttrpc/events/v1"
-	apitypes "github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/containerd/containerd/v2/pkg/protobuf"
-	"github.com/containerd/containerd/v2/pkg/protobuf/types"
-	"github.com/containerd/containerd/v2/pkg/ttrpcutil"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/pkg/ttrpcutil"
+	"github.com/containerd/containerd/protobuf"
+	"github.com/containerd/containerd/protobuf/types"
 	"github.com/containerd/ttrpc"
 	"github.com/stretchr/testify/assert"
 )
@@ -57,7 +56,7 @@ func TestClientTTRPC_Reconnect(t *testing.T) {
 
 	// Send test request to make sure its alive after reconnect
 	_, err = service.Forward(context.Background(), &v1.ForwardRequest{
-		Envelope: &apitypes.Envelope{
+		Envelope: &v1.Envelope{
 			Timestamp: protobuf.ToTimestamp(time.Now()),
 			Namespace: namespaces.Default,
 			Topic:     "/test",
@@ -83,7 +82,7 @@ func TestClientTTRPC_Close(t *testing.T) {
 	err = client.Close()
 	assert.NoError(t, err)
 
-	_, err = service.Forward(context.Background(), &v1.ForwardRequest{Envelope: &apitypes.Envelope{}})
+	_, err = service.Forward(context.Background(), &v1.ForwardRequest{Envelope: &v1.Envelope{}})
 	assert.Equal(t, err, ttrpc.ErrClosed)
 
 	err = client.Close()

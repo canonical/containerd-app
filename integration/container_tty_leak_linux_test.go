@@ -20,14 +20,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd/v2/integration/images"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/api/runtime/task/v2"
+	"github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/runtime/v2/shim"
+	"github.com/containerd/ttrpc"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/rest"
 	remoteclient "k8s.io/client-go/tools/remotecommand"
@@ -35,6 +39,14 @@ import (
 )
 
 func TestContainerTTYLeakAfterExit(t *testing.T) {
+	criCfg, err := CRIConfig()
+	require.NoError(t, err)
+
+	rt := criCfg.ContainerdConfig.Runtimes[criCfg.ContainerdConfig.DefaultRuntimeName].Type
+	if rt == "io.containerd.runtime.v1.linux" || rt == "io.containerd.runc.v1" {
+		t.Skip("skipping test for legacy runtime")
+	}
+
 	t.Log("Create a sandbox")
 	sb, sbConfig := PodSandboxConfigWithCleanup(t, "sandbox", "container-tty-leak-after-exit")
 
@@ -120,7 +132,7 @@ func TestContainerTTYLeakAfterExit(t *testing.T) {
 
 func getShimPid(t *testing.T, sb string) int {
 	ctx := namespaces.WithNamespace(context.Background(), "k8s.io")
-	shimCli := connectToShim(ctx, t, containerdEndpoint, 3, sb)
+	shimCli := connectToShim(ctx, t, containerdEndpoint, sb)
 	return int(shimPid(ctx, t, shimCli))
 }
 
@@ -141,4 +153,24 @@ func checkTTY(t *testing.T, shimPid, expected int) {
 		}
 		return false, nil
 	}, time.Second, 30*time.Second))
+}
+
+func connectToShim(ctx context.Context, t *testing.T, ctrdEndpoint string, id string) task.TaskService {
+	addr, err := shim.SocketAddress(ctx, ctrdEndpoint, id)
+	require.NoError(t, err)
+	addr = strings.TrimPrefix(addr, "unix://")
+
+	conn, err := net.Dial("unix", addr)
+	require.NoError(t, err)
+
+	client := ttrpc.NewClient(conn)
+	cli := task.NewTaskClient(client)
+
+	return cli
+}
+
+func shimPid(ctx context.Context, t *testing.T, shimCli task.TaskService) uint32 {
+	resp, err := shimCli.Connect(ctx, &task.ConnectRequest{})
+	require.NoError(t, err)
+	return resp.ShimPid
 }

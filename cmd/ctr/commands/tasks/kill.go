@@ -21,13 +21,13 @@ import (
 	"errors"
 	"fmt"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
 	gocni "github.com/containerd/go-cni"
-	"github.com/containerd/log"
 	"github.com/containerd/typeurl/v2"
 	"github.com/moby/sys/signal"
-	"github.com/urfave/cli/v2"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 const defaultSignal = "SIGTERM"
@@ -54,36 +54,34 @@ func RemoveCniNetworkIfExist(ctx context.Context, container containerd.Container
 			return err
 		}
 		if err := network.Remove(ctx, commands.FullID(ctx, container), ""); err != nil {
-			log.L.WithError(err).Error("network remove error")
+			logrus.WithError(err).Error("network remove error")
 			return err
 		}
 	}
 	return nil
 }
 
-var killCommand = &cli.Command{
+var killCommand = cli.Command{
 	Name:      "kill",
 	Usage:     "Signal a container (default: SIGTERM)",
 	ArgsUsage: "[flags] CONTAINER",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:    "signal",
-			Aliases: []string{"s"},
-			Value:   "",
-			Usage:   "Signal to send to the container",
+		cli.StringFlag{
+			Name:  "signal, s",
+			Value: "",
+			Usage: "Signal to send to the container",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "exec-id",
 			Usage: "Process ID to kill",
 		},
-		&cli.BoolFlag{
-			Name:    "all",
-			Aliases: []string{"a"},
-			Usage:   "Send signal to all processes inside the container",
+		cli.BoolFlag{
+			Name:  "all, a",
+			Usage: "Send signal to all processes inside the container",
 		},
 	},
-	Action: func(cliContext *cli.Context) error {
-		id := cliContext.Args().First()
+	Action: func(context *cli.Context) error {
+		id := context.Args().First()
 		if id == "" {
 			return errors.New("container id must be provided")
 		}
@@ -92,14 +90,14 @@ var killCommand = &cli.Command{
 			return err
 		}
 		var (
-			all    = cliContext.Bool("all")
-			execID = cliContext.String("exec-id")
+			all    = context.Bool("all")
+			execID = context.String("exec-id")
 			opts   []containerd.KillOpts
 		)
 		if all && execID != "" {
 			return errors.New("specify an exec-id or all; not both")
 		}
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
@@ -114,8 +112,8 @@ var killCommand = &cli.Command{
 		if err != nil {
 			return err
 		}
-		if cliContext.String("signal") != "" {
-			sig, err = signal.ParseSignal(cliContext.String("signal"))
+		if context.String("signal") != "" {
+			sig, err = signal.ParseSignal(context.String("signal"))
 			if err != nil {
 				return err
 			}

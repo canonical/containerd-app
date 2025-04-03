@@ -24,17 +24,18 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/pkg/progress"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/pkg/progress"
 )
 
 // Command is the cli command for managing images
-var Command = &cli.Command{
+var Command = cli.Command{
 	Name:    "images",
 	Aliases: []string{"image", "i"},
 	Usage:   "Manage images",
@@ -42,7 +43,6 @@ var Command = &cli.Command{
 		checkCommand,
 		exportCommand,
 		importCommand,
-		inspectCommand,
 		listCommand,
 		mountCommand,
 		unmountCommand,
@@ -57,25 +57,24 @@ var Command = &cli.Command{
 	},
 }
 
-var listCommand = &cli.Command{
+var listCommand = cli.Command{
 	Name:        "list",
 	Aliases:     []string{"ls"},
 	Usage:       "List images known to containerd",
 	ArgsUsage:   "[flags] [<filter>, ...]",
 	Description: "list images registered with containerd",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "quiet",
-			Aliases: []string{"q"},
-			Usage:   "Print only the image refs",
+		cli.BoolFlag{
+			Name:  "quiet, q",
+			Usage: "Print only the image refs",
 		},
 	},
-	Action: func(cliContext *cli.Context) error {
+	Action: func(context *cli.Context) error {
 		var (
-			filters = cliContext.Args().Slice()
-			quiet   = cliContext.Bool("quiet")
+			filters = context.Args()
+			quiet   = context.Bool("quiet")
 		)
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
@@ -142,24 +141,23 @@ var listCommand = &cli.Command{
 	},
 }
 
-var setLabelsCommand = &cli.Command{
+var setLabelsCommand = cli.Command{
 	Name:        "label",
 	Usage:       "Set and clear labels for an image",
 	ArgsUsage:   "[flags] <name> [<key>=<value>, ...]",
 	Description: "set and clear labels for an image",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "replace-all",
-			Aliases: []string{"r"},
-			Usage:   "Replace all labels",
+		cli.BoolFlag{
+			Name:  "replace-all, r",
+			Usage: "Replace all labels",
 		},
 	},
-	Action: func(cliContext *cli.Context) error {
+	Action: func(context *cli.Context) error {
 		var (
-			replaceAll   = cliContext.Bool("replace-all")
-			name, labels = commands.ObjectWithLabelArgs(cliContext)
+			replaceAll   = context.Bool("replace-all")
+			name, labels = commands.ObjectWithLabelArgs(context)
 		)
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
@@ -202,24 +200,23 @@ var setLabelsCommand = &cli.Command{
 	},
 }
 
-var checkCommand = &cli.Command{
+var checkCommand = cli.Command{
 	Name:        "check",
 	Usage:       "Check existing images to ensure all content is available locally",
 	ArgsUsage:   "[flags] [<filter>, ...]",
 	Description: "check existing images to ensure all content is available locally",
 	Flags: append([]cli.Flag{
-		&cli.BoolFlag{
-			Name:    "quiet",
-			Aliases: []string{"q"},
-			Usage:   "Print only the ready image refs (fully downloaded and unpacked)",
+		cli.BoolFlag{
+			Name:  "quiet, q",
+			Usage: "Print only the ready image refs (fully downloaded and unpacked)",
 		},
 	}, commands.SnapshotterFlags...),
-	Action: func(cliContext *cli.Context) error {
+	Action: func(context *cli.Context) error {
 		var (
 			exitErr error
-			quiet   = cliContext.Bool("quiet")
+			quiet   = context.Bool("quiet")
 		)
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
@@ -227,7 +224,7 @@ var checkCommand = &cli.Command{
 
 		var contentStore = client.ContentStore()
 
-		args := cliContext.Args().Slice()
+		args := []string(context.Args())
 		imageList, err := client.ListImages(ctx, args...)
 		if err != nil {
 			return fmt.Errorf("failed listing images: %w", err)
@@ -287,7 +284,7 @@ var checkCommand = &cli.Command{
 				size = "-"
 			}
 
-			unpacked, err := image.IsUnpacked(ctx, cliContext.String("snapshotter"))
+			unpacked, err := image.IsUnpacked(ctx, context.String("snapshotter"))
 			if err != nil {
 				if exitErr == nil {
 					exitErr = fmt.Errorf("unable to check unpack for %v: %w", image.Name(), err)
@@ -304,7 +301,7 @@ var checkCommand = &cli.Command{
 					size,
 					unpacked)
 			} else {
-				if complete && unpacked {
+				if complete {
 					fmt.Println(image.Name())
 				}
 			}
@@ -316,20 +313,20 @@ var checkCommand = &cli.Command{
 	},
 }
 
-var removeCommand = &cli.Command{
+var removeCommand = cli.Command{
 	Name:        "delete",
 	Aliases:     []string{"del", "remove", "rm"},
 	Usage:       "Remove one or more images by reference",
 	ArgsUsage:   "[flags] <ref> [<ref>, ...]",
 	Description: "remove one or more images by reference",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "sync",
 			Usage: "Synchronously remove image and all associated resources",
 		},
 	},
-	Action: func(cliContext *cli.Context) error {
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+	Action: func(context *cli.Context) error {
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
@@ -338,9 +335,9 @@ var removeCommand = &cli.Command{
 			exitErr    error
 			imageStore = client.ImageService()
 		)
-		for i, target := range cliContext.Args().Slice() {
+		for i, target := range context.Args() {
 			var opts []images.DeleteOpt
-			if cliContext.Bool("sync") && i == cliContext.NArg()-1 {
+			if context.Bool("sync") && i == context.NArg()-1 {
 				opts = append(opts, images.SynchronousDelete())
 			}
 			if err := imageStore.Delete(ctx, target, opts...); err != nil {
@@ -362,25 +359,25 @@ var removeCommand = &cli.Command{
 	},
 }
 
-var pruneCommand = &cli.Command{
+var pruneCommand = cli.Command{
 	Name:  "prune",
 	Usage: "Remove unused images",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "all", // TODO: add more filters
 			Usage: "Remove all unused images, not just dangling ones (if all is not specified no images will be pruned)",
 		},
 	},
 	// adapted from `nerdctl`:
 	// https://github.com/containerd/nerdctl/blob/272dc9c29fc1434839d3ec63194d7efa24d7c0ef/cmd/nerdctl/image_prune.go#L86
-	Action: func(cliContext *cli.Context) error {
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+	Action: func(context *cli.Context) error {
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
 		defer cancel()
 
-		all := cliContext.Bool("all")
+		all := context.Bool("all")
 		if !all {
 			log.G(ctx).Warn("No images pruned. `image prune` requires --all to be specified.")
 			// NOP

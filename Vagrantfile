@@ -17,7 +17,7 @@
 
 # Vagrantfile for Fedora and EL
 Vagrant.configure("2") do |config|
-  config.vm.box = ENV["BOX"] ? ENV["BOX"].split("@")[0] : "fedora/41-cloud-base"
+  config.vm.box = ENV["BOX"] ? ENV["BOX"].split("@")[0] : "fedora/39-cloud-base"
   # BOX_VERSION is deprecated. Use "BOX=<BOX>@<BOX_VERSION>".
   config.vm.box_version = ENV["BOX_VERSION"] || (ENV["BOX"].split("@")[1] if ENV["BOX"])
 
@@ -35,10 +35,7 @@ Vagrant.configure("2") do |config|
     v.memory = memory
     v.cpus = cpus
     v.machine_virtual_size = disk_size
-    # https://github.com/vagrant-libvirt/vagrant-libvirt/issues/1725#issuecomment-1454058646
-    # Needs `sudo cp /usr/share/OVMF/OVMF_VARS_4M.fd /var/lib/libvirt/qemu/nvram/`
-    v.loader = '/usr/share/OVMF/OVMF_CODE_4M.fd'
-    v.nvram = '/var/lib/libvirt/qemu/nvram/OVMF_VARS_4M.fd'
+    v.loader = "/usr/share/OVMF/OVMF_CODE.fd"
   end
 
   config.vm.synced_folder ".", "/vagrant", type: "rsync"
@@ -107,7 +104,7 @@ EOF
   config.vm.provision "install-golang", type: "shell", run: "once" do |sh|
     sh.upload_path = "/tmp/vagrant-install-golang"
     sh.env = {
-        'GO_VERSION': ENV['GO_VERSION'] || "1.23.4",
+        'GO_VERSION': ENV['GO_VERSION'] || "1.23.7",
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
@@ -193,7 +190,7 @@ EOF
         source /etc/profile.d/sh.local
         set -eux -o pipefail
         cd ${GOPATH}/src/github.com/containerd/containerd
-        make BUILDTAGS="seccomp selinux no_btrfs no_devmapper no_zfs" binaries install
+        make BUILDTAGS="seccomp selinux no_aufs no_btrfs no_devmapper no_zfs" binaries install
         type containerd
         containerd --version
         chcon -v -t container_runtime_exec_t /usr/local/bin/{containerd,containerd-shim*}
@@ -260,7 +257,7 @@ EOF
         set -eux -o pipefail
         rm -rf /var/lib/containerd-test /run/containerd-test
         cd ${GOPATH}/src/github.com/containerd/containerd
-        go test -v -count=1 -race ./core/metrics/cgroups
+        go test -v -count=1 -race ./metrics/cgroups
         make integration EXTRA_TESTFLAGS="-timeout 15m -no-criu -test.v" TEST_RUNTIME=io.containerd.runc.v2 RUNC_FLAVOR=$RUNC_FLAVOR
     SHELL
   end
@@ -275,7 +272,7 @@ EOF
         'GOTESTSUM_JUNITFILE': ENV['GOTESTSUM_JUNITFILE'],
         'GOTESTSUM_JSONFILE': ENV['GOTESTSUM_JSONFILE'],
         'GITHUB_WORKSPACE': '',
-        'CGROUP_DRIVER': ENV['CGROUP_DRIVER'],
+        'ENABLE_CRI_SANDBOXES': ENV['ENABLE_CRI_SANDBOXES'],
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
@@ -288,7 +285,7 @@ EOF
         cleanup
         cd ${GOPATH}/src/github.com/containerd/containerd
         # cri-integration.sh executes containerd from ./bin, not from $PATH .
-        make BUILDTAGS="seccomp selinux no_btrfs no_devmapper no_zfs" binaries bin/cri-integration.test
+        make BUILDTAGS="seccomp selinux no_aufs no_btrfs no_devmapper no_zfs" binaries bin/cri-integration.test
         chcon -v -t container_runtime_exec_t ./bin/{containerd,containerd-shim*}
         CONTAINERD_RUNTIME=io.containerd.runc.v2 ./script/test/cri-integration.sh
         cleanup
@@ -303,7 +300,6 @@ EOF
     sh.env = {
         'GOTEST': ENV['GOTEST'] || "go test",
         'REPORT_DIR': ENV['REPORT_DIR'],
-        'CGROUP_DRIVER': ENV['CGROUP_DRIVER'],
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash

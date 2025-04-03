@@ -20,14 +20,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/images/converter"
-	"github.com/containerd/containerd/v2/core/images/converter/uncompress"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/images/converter"
+	"github.com/containerd/containerd/images/converter/uncompress"
 	"github.com/containerd/platforms"
-	"github.com/urfave/cli/v2"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/urfave/cli"
 )
 
-var convertCommand = &cli.Command{
+var convertCommand = cli.Command{
 	Name:      "convert",
 	Usage:     "Convert an image",
 	ArgsUsage: "[flags] <source_ref> <target_ref>",
@@ -40,38 +41,42 @@ When '--all-platforms' is given all images in a manifest list must be available.
 `,
 	Flags: []cli.Flag{
 		// generic flags
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "uncompress",
 			Usage: "Convert tar.gz layers to uncompressed tar layers",
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "oci",
 			Usage: "Convert Docker media types to OCI media types",
 		},
 		// platform flags
-		&cli.StringSliceFlag{
+		cli.StringSliceFlag{
 			Name:  "platform",
 			Usage: "Pull content from a specific platform",
-			Value: cli.NewStringSlice(),
+			Value: &cli.StringSlice{},
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "all-platforms",
 			Usage: "Exports content from all platforms",
 		},
 	},
-	Action: func(cliContext *cli.Context) error {
+	Action: func(context *cli.Context) error {
 		var convertOpts []converter.Opt
-		srcRef := cliContext.Args().Get(0)
-		targetRef := cliContext.Args().Get(1)
+		srcRef := context.Args().Get(0)
+		targetRef := context.Args().Get(1)
 		if srcRef == "" || targetRef == "" {
 			return errors.New("src and target image need to be specified")
 		}
 
-		if !cliContext.Bool("all-platforms") {
-			if pss := cliContext.StringSlice("platform"); len(pss) > 0 {
-				all, err := platforms.ParseAll(pss)
-				if err != nil {
-					return err
+		if !context.Bool("all-platforms") {
+			if pss := context.StringSlice("platform"); len(pss) > 0 {
+				var all []ocispec.Platform
+				for _, ps := range pss {
+					p, err := platforms.Parse(ps)
+					if err != nil {
+						return fmt.Errorf("invalid platform %q: %w", ps, err)
+					}
+					all = append(all, p)
 				}
 				convertOpts = append(convertOpts, converter.WithPlatform(platforms.Ordered(all...)))
 			} else {
@@ -79,15 +84,15 @@ When '--all-platforms' is given all images in a manifest list must be available.
 			}
 		}
 
-		if cliContext.Bool("uncompress") {
+		if context.Bool("uncompress") {
 			convertOpts = append(convertOpts, converter.WithLayerConvertFunc(uncompress.LayerConvertFunc))
 		}
 
-		if cliContext.Bool("oci") {
+		if context.Bool("oci") {
 			convertOpts = append(convertOpts, converter.WithDockerToOCI(true))
 		}
 
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
@@ -97,7 +102,7 @@ When '--all-platforms' is given all images in a manifest list must be available.
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(cliContext.App.Writer, newImg.Target.Digest.String())
+		fmt.Fprintln(context.App.Writer, newImg.Target.Digest.String())
 		return nil
 	},
 }

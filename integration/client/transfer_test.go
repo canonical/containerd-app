@@ -23,8 +23,8 @@ import (
 	"io"
 	"testing"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/transfer/archive"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/pkg/transfer/archive"
 )
 
 func TestTransferEcho(t *testing.T) {

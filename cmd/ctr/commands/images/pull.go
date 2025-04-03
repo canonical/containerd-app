@@ -18,29 +18,28 @@ package images
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands/content"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/core/transfer"
-	"github.com/containerd/containerd/v2/core/transfer/image"
-	"github.com/containerd/containerd/v2/core/transfer/registry"
-	"github.com/containerd/containerd/v2/pkg/progress"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/cmd/ctr/commands/content"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/pkg/progress"
+	"github.com/containerd/containerd/pkg/transfer"
+	"github.com/containerd/containerd/pkg/transfer/image"
+	"github.com/containerd/containerd/pkg/transfer/registry"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/image-spec/identity"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 )
 
-var pullCommand = &cli.Command{
+var pullCommand = cli.Command{
 	Name:      "pull",
 	Usage:     "Pull an image from a remote",
 	ArgsUsage: "[flags] <ref>",
@@ -54,107 +53,86 @@ command. As part of this process, we do the following:
 3. Register metadata for the image.
 `,
 	Flags: append(append(commands.RegistryFlags, append(commands.SnapshotterFlags, commands.LabelFlag)...),
-		&cli.StringSliceFlag{
+		cli.StringSliceFlag{
 			Name:  "platform",
 			Usage: "Pull content from a specific platform",
-			Value: cli.NewStringSlice(),
+			Value: &cli.StringSlice{},
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "all-platforms",
 			Usage: "Pull content and metadata from all platforms",
 		},
-		&cli.BoolFlag{
-			Name:   "all-metadata",
-			Usage:  "(Deprecated: use skip-metadata) Pull metadata for all platforms",
-			Hidden: true,
+		cli.BoolFlag{
+			Name:  "all-metadata",
+			Usage: "Pull metadata for all platforms",
 		},
-		&cli.BoolFlag{
-			Name:  "skip-metadata",
-			Usage: "Skips metadata for unused platforms (Image may be unable to be pushed without metadata)",
-		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "print-chainid",
 			Usage: "Print the resulting image's chain ID",
 		},
-		&cli.IntFlag{
+		cli.IntFlag{
 			Name:  "max-concurrent-downloads",
 			Usage: "Set the max concurrent downloads for each pull",
 		},
-		&cli.BoolFlag{
+		cli.BoolTFlag{
 			Name:  "local",
 			Usage: "Fetch content from local client rather than using transfer service",
 		},
 	),
-	Action: func(cliContext *cli.Context) error {
+	Action: func(context *cli.Context) error {
 		var (
-			ref = cliContext.Args().First()
+			ref = context.Args().First()
 		)
 		if ref == "" {
-			return errors.New("please provide an image reference to pull")
+			return fmt.Errorf("please provide an image reference to pull")
 		}
 
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
 		defer cancel()
 
-		if !cliContext.Bool("local") {
-			unsupportedFlags := []string{"max-concurrent-downloads", "print-chainid",
-				"skip-verify", "tlscacert", "tlscert", "tlskey", "http-dump", "http-trace", // RegistryFlags
-			}
-			for _, s := range unsupportedFlags {
-				if cliContext.IsSet(s) {
-					return fmt.Errorf("\"--%s\" requires \"--local\" flag", s)
-				}
-			}
-
-			ch, err := commands.NewStaticCredentials(ctx, cliContext, ref)
+		if !context.BoolT("local") {
+			ch, err := commands.NewStaticCredentials(ctx, context, ref)
 			if err != nil {
 				return err
 			}
 
 			var sopts []image.StoreOpt
-			p, err := platforms.ParseAll(cliContext.StringSlice("platform"))
-			if err != nil {
-				return err
-			}
-			allPlatforms := cliContext.Bool("all-platforms")
-			if len(p) > 0 && allPlatforms {
-				return errors.New("cannot specify both --platform and --all-platforms")
-			}
-			if len(p) == 0 && !allPlatforms {
-				p = append(p, platforms.DefaultSpec())
-			}
-			// we use an empty `Platform` slice to indicate that we want to pull all platforms
-			sopts = append(sopts, image.WithPlatforms(p...))
-			// TODO: Support unpack for all platforms..?
-			// Pass in a *?
-			for _, platform := range p {
-				sopts = append(sopts, image.WithUnpack(platform, cliContext.String("snapshotter")))
+
+			var p []ocispec.Platform
+			for _, s := range context.StringSlice("platform") {
+				ps, err := platforms.Parse(s)
+				if err != nil {
+					return fmt.Errorf("unable to parse platform %s: %w", s, err)
+				}
+				p = append(p, ps)
 			}
 
-			if cliContext.Bool("metadata-only") {
+			// Set unpack configuration
+			for _, platform := range p {
+				sopts = append(sopts, image.WithUnpack(platform, context.String("snapshotter")))
+			}
+			if !context.Bool("all-platforms") {
+				if len(p) == 0 {
+					p = append(p, platforms.DefaultSpec())
+				}
+				sopts = append(sopts, image.WithPlatforms(p...))
+			}
+			// TODO: Support unpack for all platforms..?
+			// Pass in a *?
+
+			if context.Bool("metadata-only") {
 				sopts = append(sopts, image.WithAllMetadata)
 				// Any with an empty set is None
 				// TODO: Specify way to specify not default platform
 				// config.PlatformMatcher = platforms.Any()
-			} else if !cliContext.Bool("skip-metadata") {
+			} else if context.Bool("all-metadata") {
 				sopts = append(sopts, image.WithAllMetadata)
 			}
-			labels := cliContext.StringSlice("label")
-			if len(labels) > 0 {
-				sopts = append(sopts, image.WithImageLabels(commands.LabelArgs(labels)))
-			}
 
-			opts := []registry.Opt{registry.WithCredentials(ch), registry.WithHostDir(cliContext.String("hosts-dir"))}
-			if cliContext.Bool("plain-http") {
-				opts = append(opts, registry.WithDefaultScheme("http"))
-			}
-			reg, err := registry.NewOCIRegistry(ctx, ref, opts...)
-			if err != nil {
-				return err
-			}
+			reg := registry.NewOCIRegistry(ref, nil, ch)
 			is := image.NewStore(ref, sopts...)
 
 			pf, done := ProgressHandler(ctx, os.Stdout)
@@ -170,7 +148,7 @@ command. As part of this process, we do the following:
 		defer done(ctx)
 
 		// TODO: Handle this locally via transfer config
-		config, err := content.NewFetchConfig(ctx, cliContext)
+		config, err := content.NewFetchConfig(ctx, context)
 		if err != nil {
 			return err
 		}
@@ -185,15 +163,18 @@ command. As part of this process, we do the following:
 		// TODO: Show unpack status
 
 		var p []ocispec.Platform
-		if cliContext.Bool("all-platforms") {
+		if context.Bool("all-platforms") {
 			p, err = images.Platforms(ctx, client.ContentStore(), img.Target)
 			if err != nil {
 				return fmt.Errorf("unable to resolve image platforms: %w", err)
 			}
 		} else {
-			p, err = platforms.ParseAll(cliContext.StringSlice("platform"))
-			if err != nil {
-				return err
+			for _, s := range context.StringSlice("platform") {
+				ps, err := platforms.Parse(s)
+				if err != nil {
+					return fmt.Errorf("unable to parse platform %s: %w", s, err)
+				}
+				p = append(p, ps)
 			}
 		}
 		if len(p) == 0 {
@@ -204,11 +185,11 @@ command. As part of this process, we do the following:
 		for _, platform := range p {
 			fmt.Printf("unpacking %s %s...\n", platforms.Format(platform), img.Target.Digest)
 			i := containerd.NewImageWithPlatform(client, img, platforms.Only(platform))
-			err = i.Unpack(ctx, cliContext.String("snapshotter"))
+			err = i.Unpack(ctx, context.String("snapshotter"))
 			if err != nil {
 				return err
 			}
-			if cliContext.Bool("print-chainid") {
+			if context.Bool("print-chainid") {
 				diffIDs, err := i.RootFS(ctx)
 				if err != nil {
 					return err
@@ -226,18 +207,6 @@ type progressNode struct {
 	transfer.Progress
 	children []*progressNode
 	root     bool
-}
-
-func (n *progressNode) mainDesc() *ocispec.Descriptor {
-	if n.Desc != nil {
-		return n.Desc
-	}
-	for _, c := range n.children {
-		if desc := c.mainDesc(); desc != nil {
-			return desc
-		}
-	}
-	return nil
 }
 
 // ProgressHandler continuously updates the output with job progress
@@ -363,11 +332,6 @@ func ProgressHandler(ctx context.Context, out io.Writer) (transfer.ProgressFunc,
 
 func DisplayHierarchy(w io.Writer, status string, roots []*progressNode, start time.Time) {
 	total := displayNode(w, "", roots)
-	for _, r := range roots {
-		if desc := r.mainDesc(); desc != nil {
-			fmt.Fprintf(w, "%s %s\n", desc.MediaType, desc.Digest)
-		}
-	}
 	// Print the Status line
 	fmt.Fprintf(w, "%s\telapsed: %-4.1fs\ttotal: %7.6v\t(%v)\t\n",
 		status,

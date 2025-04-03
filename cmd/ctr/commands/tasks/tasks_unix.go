@@ -19,29 +19,29 @@
 package tasks
 
 import (
-	"context"
+	gocontext "context"
 	"errors"
 	"net/url"
 	"os"
 	"os/signal"
 
 	"github.com/containerd/console"
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
 	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 	"golang.org/x/sys/unix"
 )
 
 var platformStartFlags = []cli.Flag{
-	&cli.BoolFlag{
+	cli.BoolFlag{
 		Name:  "no-pivot",
 		Usage: "Disable use of pivot-root (linux only)",
 	},
 }
 
 // HandleConsoleResize resizes the console
-func HandleConsoleResize(ctx context.Context, task resizer, con console.Console) error {
+func HandleConsoleResize(ctx gocontext.Context, task resizer, con console.Console) error {
 	// do an initial resize of the console
 	size, err := con.Size()
 	if err != nil {
@@ -68,7 +68,7 @@ func HandleConsoleResize(ctx context.Context, task resizer, con console.Console)
 }
 
 // NewTask creates a new task
-func NewTask(ctx context.Context, client *containerd.Client, container containerd.Container, checkpoint string, con console.Console, nullIO bool, logURI string, ioOpts []cio.Opt, opts ...containerd.NewTaskOpts) (containerd.Task, error) {
+func NewTask(ctx gocontext.Context, client *containerd.Client, container containerd.Container, checkpoint string, con console.Console, nullIO bool, logURI string, ioOpts []cio.Opt, opts ...containerd.NewTaskOpts) (containerd.Task, error) {
 	stdinC := &stdinCloser{
 		stdin: os.Stdin,
 	}
@@ -121,8 +121,8 @@ func NewTask(ctx context.Context, client *containerd.Client, container container
 }
 
 // GetNewTaskOpts resolves containerd.NewTaskOpts from cli.Context
-func GetNewTaskOpts(cliContext *cli.Context) []containerd.NewTaskOpts {
-	if cliContext.Bool("no-pivot") {
+func GetNewTaskOpts(context *cli.Context) []containerd.NewTaskOpts {
+	if context.Bool("no-pivot") {
 		return []containerd.NewTaskOpts{containerd.WithNoPivotRoot}
 	}
 	return nil

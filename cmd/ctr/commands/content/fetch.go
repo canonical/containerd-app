@@ -26,21 +26,22 @@ import (
 	"text/tabwriter"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/core/remotes"
-	"github.com/containerd/containerd/v2/pkg/progress"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/pkg/progress"
+	"github.com/containerd/containerd/remotes"
 )
 
-var fetchCommand = &cli.Command{
+var fetchCommand = cli.Command{
 	Name:      "fetch",
 	Usage:     "Fetch all content for an image into containerd",
 	ArgsUsage: "[flags] <remote> <object>",
@@ -59,38 +60,33 @@ content and snapshots ready for a direct use via the 'ctr run'.
 
 Most of this is experimental and there are few leaps to make this work.`,
 	Flags: append(commands.RegistryFlags, commands.LabelFlag,
-		&cli.StringSliceFlag{
+		cli.StringSliceFlag{
 			Name:  "platform",
 			Usage: "Pull content from a specific platform",
 		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "all-platforms",
 			Usage: "Pull content from all platforms",
 		},
-		&cli.BoolFlag{
-			Name:   "all-metadata",
-			Usage:  "(Deprecated: use skip-metadata) Pull metadata for all platforms",
-			Hidden: true,
+		cli.BoolFlag{
+			Name:  "all-metadata",
+			Usage: "Pull metadata for all platforms",
 		},
-		&cli.BoolFlag{
-			Name:  "skip-metadata",
-			Usage: "Skips metadata for unused platforms (Image may be unable to be pushed without metadata)",
-		},
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "metadata-only",
 			Usage: "Pull all metadata including manifests and configs",
 		},
 	),
-	Action: func(cliContext *cli.Context) error {
+	Action: func(clicontext *cli.Context) error {
 		var (
-			ref = cliContext.Args().First()
+			ref = clicontext.Args().First()
 		)
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(clicontext)
 		if err != nil {
 			return err
 		}
 		defer cancel()
-		config, err := NewFetchConfig(ctx, cliContext)
+		config, err := NewFetchConfig(ctx, clicontext)
 		if err != nil {
 			return err
 		}
@@ -121,42 +117,42 @@ type FetchConfig struct {
 }
 
 // NewFetchConfig returns the default FetchConfig from cli flags
-func NewFetchConfig(ctx context.Context, cliContext *cli.Context) (*FetchConfig, error) {
-	resolver, err := commands.GetResolver(ctx, cliContext)
+func NewFetchConfig(ctx context.Context, clicontext *cli.Context) (*FetchConfig, error) {
+	resolver, err := commands.GetResolver(ctx, clicontext)
 	if err != nil {
 		return nil, err
 	}
 	config := &FetchConfig{
 		Resolver:  resolver,
-		Labels:    cliContext.StringSlice("label"),
-		TraceHTTP: cliContext.Bool("http-trace"),
+		Labels:    clicontext.StringSlice("label"),
+		TraceHTTP: clicontext.Bool("http-trace"),
 	}
-	if !cliContext.Bool("debug") {
+	if !clicontext.GlobalBool("debug") {
 		config.ProgressOutput = os.Stdout
 	}
-	if !cliContext.Bool("all-platforms") {
-		p := cliContext.StringSlice("platform")
+	if !clicontext.Bool("all-platforms") {
+		p := clicontext.StringSlice("platform")
 		if len(p) == 0 {
-			p = append(p, platforms.DefaultString())
+			p = append(p, platforms.Format(platforms.DefaultSpec())) // For 1.7 continue using the old format without os-version included.
 		}
 		config.Platforms = p
 	}
 
-	if cliContext.Bool("metadata-only") {
+	if clicontext.Bool("metadata-only") {
 		config.AllMetadata = true
 		// Any with an empty set is None
 		config.PlatformMatcher = platforms.Any()
-	} else if !cliContext.Bool("skip-metadata") {
+	} else if clicontext.Bool("all-metadata") {
 		config.AllMetadata = true
 	}
 
-	if cliContext.IsSet("max-concurrent-downloads") {
-		mcd := cliContext.Int("max-concurrent-downloads")
+	if clicontext.IsSet("max-concurrent-downloads") {
+		mcd := clicontext.Int("max-concurrent-downloads")
 		config.RemoteOpts = append(config.RemoteOpts, containerd.WithMaxConcurrentDownloads(mcd))
 	}
 
-	if cliContext.IsSet("max-concurrent-uploaded-layers") {
-		mcu := cliContext.Int("max-concurrent-uploaded-layers")
+	if clicontext.IsSet("max-concurrent-uploaded-layers") {
+		mcu := clicontext.Int("max-concurrent-uploaded-layers")
 		config.RemoteOpts = append(config.RemoteOpts, containerd.WithMaxConcurrentUploadedLayers(mcu))
 	}
 

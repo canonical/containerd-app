@@ -21,11 +21,12 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/leases"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/leases"
 	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 const (
@@ -34,17 +35,17 @@ const (
 )
 
 var pruneFlags = []cli.Flag{
-	&cli.BoolFlag{
+	cli.BoolFlag{
 		Name:  "async",
 		Usage: "Allow garbage collection to cleanup asynchronously",
 	},
-	&cli.BoolFlag{
+	cli.BoolFlag{
 		Name:  "dry",
 		Usage: "Just show updates without applying (enables debug logging)",
 	},
 }
 
-var pruneCommand = &cli.Command{
+var pruneCommand = cli.Command{
 	Name:  "prune",
 	Usage: "Prunes content from the content store",
 	Subcommands: cli.Commands{
@@ -52,25 +53,25 @@ var pruneCommand = &cli.Command{
 	},
 }
 
-var pruneReferencesCommand = &cli.Command{
+var pruneReferencesCommand = cli.Command{
 	Name:  "references",
 	Usage: "Prunes preference labels from the content store (layers only by default)",
 	Flags: pruneFlags,
-	Action: func(cliContext *cli.Context) error {
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+	Action: func(clicontext *cli.Context) error {
+		client, ctx, cancel, err := commands.NewClient(clicontext)
 		if err != nil {
 			return err
 		}
 		defer cancel()
 
-		dryRun := cliContext.Bool("dry")
+		dryRun := clicontext.Bool("dry")
 		if dryRun {
-			log.G(ctx).Logger.SetLevel(log.DebugLevel)
+			log.G(ctx).Logger.SetLevel(logrus.DebugLevel)
 			log.G(ctx).Debug("dry run, no changes will be applied")
 		}
 
 		var deleteOpts []leases.DeleteOpt
-		if !cliContext.Bool("async") {
+		if !clicontext.Bool("async") {
 			deleteOpts = append(deleteOpts, leases.SynchronousDelete)
 		}
 

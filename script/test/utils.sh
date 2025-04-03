@@ -53,20 +53,6 @@ version=2
 [plugins."io.containerd.grpc.v1.cri"]
   drain_exec_sync_io_timeout = "10s"
 EOF
-  if command -v sestatus >/dev/null 2>&1; then
-    cat >>${config_file} <<EOF
-  enable_selinux = true
-EOF
-  fi
-
-  cat >>${config_file} <<EOF
-# Userns requires idmap mount support for overlayfs (added in 5.19)
-# Let's opt-in for a recursive chown, so we can always test this even in old distros.
-# Note that if idmap mounts support is present, we will use that, so it is harmless to keep this
-# here.
-[plugins."io.containerd.snapshotter.v1.overlayfs"]
-    slow_chown = true
-EOF
 
   if command -v sestatus >/dev/null 2>&1; then
     cat >>${config_file} <<EOF
@@ -167,13 +153,6 @@ version = 2
 EOF
 fi
 
-if [ $IS_WINDOWS -eq 0 ] && [ ! -z "$CGROUP_DRIVER" ] && [ "$CGROUP_DRIVER" = "systemd" ];then
-  cat >> ${CONTAINERD_CONFIG_FILE} << EOF
-[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-   SystemdCgroup = true
-EOF
-fi
-
 # CONTAINERD_TEST_SUFFIX is the suffix appended to the root/state directory used
 # by test containerd.
 CONTAINERD_TEST_SUFFIX=${CONTAINERD_TEST_SUFFIX:-"-test"}
@@ -236,6 +215,10 @@ run_containerd() {
   CMD=""
   if [ -n "${sudo}" ]; then
     CMD+="${sudo} "
+    # sudo strips environment variables, so add ENABLE_CRI_SANDBOXES back if present
+    if [ -n  "${ENABLE_CRI_SANDBOXES}" ]; then
+      CMD+="ENABLE_CRI_SANDBOXES='${ENABLE_CRI_SANDBOXES}' "
+    fi
   fi
   CMD+="${PWD}/bin/containerd"
 
@@ -362,8 +345,4 @@ readiness_check() {
       echo "$attempt_num attempt \"$command\"! Trying again in $attempt_num seconds..."
       sleep $(( attempt_num++ ))
   done
-  set -x
-  cat "${report_dir}/containerd.log"
-  cat "${config_file}"
-  set +x
 }
