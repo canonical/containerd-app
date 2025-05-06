@@ -1,13 +1,10 @@
 name: CI
 on:
-  push:
-    branches:
-      - main
-      - "release/**"
+  # When added to a merge queue.
+  # See https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#triggering-merge-group-checks-with-github-actions
+  merge_group:
   pull_request:
-    branches:
-      - main
-      - "release/**"
+    branches: ['main', 'release/**']
 
 permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -26,14 +23,14 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-24.04-arm, macos-13, windows-2019]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, windows-2019]
+
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/install-go
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
-          only-new-issues: true
           version: v1.60.3
           skip-cache: true
           args: --timeout=8m
@@ -43,18 +40,18 @@ jobs:
   #
   project:
     name: Project Checks
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: src/github.com/containerd/containerd
           fetch-depth: 100
 
       - uses: ./src/github.com/containerd/containerd/.github/actions/install-go
 
-      - uses: containerd/project-checks@v1.2.1
+      - uses: containerd/project-checks@800740a80e93c309f9a40903ce26d749ad0909ec # v1.2.1
         if: github.repository == 'containerd/containerd'
         with:
           working-directory: src/github.com/containerd/containerd
@@ -71,7 +68,7 @@ jobs:
   #
   protos:
     name: Protobuf
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     defaults:
@@ -79,7 +76,7 @@ jobs:
         working-directory: src/github.com/containerd/containerd
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: src/github.com/containerd/containerd
 
@@ -105,11 +102,11 @@ jobs:
 
   man:
     name: Manpages
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/install-go
       - run: go install github.com/cpuguy83/go-md2man/v2@v2.0.2
       - run: make man
@@ -119,7 +116,7 @@ jobs:
   crossbuild:
     name: Crossbuild Binaries
     needs: [project, linters, protos, man]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -140,7 +137,7 @@ jobs:
             goarm: "7"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/install-go
       - run: |
           set -e -x
@@ -186,15 +183,15 @@ jobs:
   binaries:
     name: Binaries
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     needs: [project, linters, protos, man]
 
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-24.04-arm, macos-13, windows-2019, windows-2022]
-        go-version: ["1.23.7", "1.24.1"]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, macos-13, windows-2019, windows-2022]
+        go-version: ["1.24.2", "1.23.8"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/install-go
         with:
           go-version: ${{ matrix.go-version }}
@@ -217,8 +214,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, windows-2022]
-        enable_cri_sandboxes: ["", "sandboxed"]
+        os: [windows-2022, windows-2019]
+        cgroup_driver: [cgroupfs]
 
     defaults:
       run:
@@ -226,13 +223,13 @@ jobs:
         working-directory: src/github.com/containerd/containerd
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: src/github.com/containerd/containerd
 
       - uses: ./src/github.com/containerd/containerd/.github/actions/install-go
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: kubernetes-sigs/cri-tools
           path: src/github.com/kubernetes-sigs/cri-tools
@@ -292,7 +289,7 @@ jobs:
         shell: powershell
         run: |
           # Get critctl tool. Used for cri-integration tests
-          $CRICTL_DOWNLOAD_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.21.0/crictl-v1.21.0-windows-amd64.tar.gz"
+          $CRICTL_DOWNLOAD_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.26.0/crictl-v1.26.0-windows-amd64.tar.gz"
           curl.exe -L $CRICTL_DOWNLOAD_URL -o c:\crictl.tar.gz
           tar -xvf c:\crictl.tar.gz
           mv crictl.exe "${{ github.workspace }}/bin/crictl.exe" # Move crictl somewhere in path
@@ -315,7 +312,6 @@ jobs:
       - name: Integration 1
         env:
           CGO_ENABLED: 1
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
           GOTESTSUM_JUNITFILE: ${{github.workspace}}/test-integration-serial-junit.xml
           GOTESTSUM_JSONFILE: ${{github.workspace}}/test-integration-serial-gotest.json
           EXTRA_TESTFLAGS: "-timeout=20m"
@@ -333,7 +329,6 @@ jobs:
           TESTFLAGS_PARALLEL: 1
           EXTRA_TESTFLAGS: "-short"
           CGO_ENABLED: 1
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
           GOTESTSUM_JUNITFILE: ${{github.workspace}}/test-integration-parallel-junit.xml
           GOTESTSUM_JSONFILE: ${{github.workspace}}/test-integration-parallel-gotest.json
         run: mingw32-make.exe integration
@@ -346,15 +341,15 @@ jobs:
 
       - name: CRI Integration Test
         env:
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
           TEST_IMAGE_LIST: ${{github.workspace}}/repolist.toml
+          CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
         run: |
           make cri-integration
 
       - name: cri-tools critest
         env:
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
           CRI_TEST_IMAGES: ${{github.workspace}}/cri-test-images.yaml
+          CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
         shell: powershell
         run: |
           Start-Process -FilePath containerd.exe -NoNewWindow -RedirectStandardError true -PassThru
@@ -368,10 +363,10 @@ jobs:
           }
           critest.exe --runtime-endpoint=npipe://.//pipe//containerd-containerd --test-images-file='${{env.CRI_TEST_IMAGES}}' --report-dir='${{github.workspace}}/critestreport' $skip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
-          name: TestResults ${{ matrix.os }} ${{ matrix.enable_cri_sandboxes }}
+          name: TestResults ${{ matrix.os }} ${{ matrix.cgroup_driver }}
           path: |
             ${{github.workspace}}/*-junit.xml
             ${{github.workspace}}/*-gotest.json
@@ -387,26 +382,15 @@ jobs:
       fail-fast: false
       matrix:
         runtime:
-          - io.containerd.runtime.v1.linux
-          - io.containerd.runc.v1
           - io.containerd.runc.v2
-        runc: [runc, crun]
-        enable_cri_sandboxes: ["", "sandboxed"]
-        os: [ubuntu-20.04, ubuntu-24.04-arm]
-        exclude:
-          - runtime: io.containerd.runc.v1
-            runc: crun
-          - runtime: io.containerd.runtime.v1.linux
-            runc: crun
-          - runtime: io.containerd.runc.v1
-            os: ubuntu-24.04-arm
-          - runtime: io.containerd.runtime.v1.linux
-            os: ubuntu-24.04-arm
+        runc: [runc]  # crun can be added here to debug crun issues
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+        cgroup_driver: [cgroupfs, systemd]
 
     env:
       GOTEST: gotestsum --
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/install-go
 
       - name: Install containerd dependencies
@@ -421,7 +405,9 @@ jobs:
           script/setup/install-critools
           script/setup/install-failpoint-binaries
 
-      - name: Install criu
+      # Disable criu testing on arm64 until we can solve the consistent failures of restore testing
+      - if: matrix.os != 'ubuntu-24.04-arm'
+        name: Install criu
         run: |
           sudo add-apt-repository -y ppa:criu/ppa
           sudo apt-get update
@@ -452,7 +438,6 @@ jobs:
         env:
           TEST_RUNTIME: ${{ matrix.runtime }}
           RUNC_FLAVOR: ${{ matrix.runc }}
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
           GOTESTSUM_JUNITFILE: ${{github.workspace}}/test-integration-serial-junit.xml
           GOTESTSUM_JSONFILE: ${{github.workspace}}/test-integration-serial-gotest.json
         run: |
@@ -471,7 +456,6 @@ jobs:
         env:
           TEST_RUNTIME: ${{ matrix.runtime }}
           RUNC_FLAVOR: ${{ matrix.runc }}
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
           GOTESTSUM_JUNITFILE: ${{github.workspace}}/test-integration-parallel-junit.xml
           GOTESTSUM_JSONFILE: ${{github.workspace}}/test-integration-parallel-gotest.json
         run: |
@@ -488,16 +472,28 @@ jobs:
       - name: CRI Integration Test
         env:
           TEST_RUNTIME: ${{ matrix.runtime }}
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
+          CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
+          RUNC_FLAVOR: ${{ matrix.runc }}
         run: |
+          cat /sys/fs/cgroup/cgroup.controllers
+          systemctl status
+          [ "${RUNC_FLAVOR}" == "crun" ] && {
+             export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          }
+          runc --version
           CONTAINERD_RUNTIME=$TEST_RUNTIME make cri-integration
 
       - name: cri-tools critest
         env:
           TEST_RUNTIME: ${{ matrix.runtime }}
-          ENABLE_CRI_SANDBOXES: ${{ matrix.enable_cri_sandboxes }}
+          CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
         run: |
-          sudo -E PATH=$PATH ./script/critest.sh "${{github.workspace}}/report"
+          # skipping the ipv6 test till https://github.com/actions/runner-images/issues/11985 is fixed
+          if [[ ${{matrix.os}} == "ubuntu-22.04" ]]; then
+            skip_test="runtime should support port mapping with host port and container port"
+          fi
+          env
+          sudo -E PATH=$PATH SKIP_TEST="$skip_test" ./script/critest.sh "${{github.workspace}}/report"
 
       # Log the status of this VM to investigate issues like
       # https://github.com/containerd/containerd/issues/4969
@@ -508,17 +504,16 @@ jobs:
           mount
           df
           losetup -l
-
       - name: Kernel Message
         if: failure()
         run: |
           sudo lsmod
           sudo dmesg -T -f kern
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
-          name: TestResults ${{ matrix.runtime }} ${{matrix.runc}} ${{ matrix.os }} ${{ matrix.enable_cri_sandboxes }}
+          name: TestResults ${{ matrix.runtime }} ${{matrix.runc}} ${{ matrix.os }} ${{ matrix.cgroup_driver }}
           path: |
             *-junit.xml
             *-gotest.json
@@ -527,24 +522,46 @@ jobs:
 
   integration-vagrant:
     name: Vagrant integration
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: [project, linters, protos, man]
 
     strategy:
       fail-fast: false
       matrix:
-        box:
-          - fedora/39-cloud-base
-          # We have to keep EL8 to test old glibc, cgroup, kernel, etc.
-          # The image was changed from rockylinux/8 to almalinux/8,
-          # as the former one no longer works:
-          # https://github.com/containerd/containerd/pull/10297
-          - almalinux/8
-          - almalinux/9
+        include:
+          - box: fedora/41-cloud-base
+            cgroup_driver: cgroupfs
+            runc: runc
+          - box: fedora/41-cloud-base
+            cgroup_driver: systemd
+            runc: runc
+          - box: fedora/41-cloud-base
+            cgroup_driver: cgroupfs
+            runc: crun
+          - box: fedora/41-cloud-base
+            cgroup_driver: systemd
+            runc: crun
+            # We have to keep EL8 to test old glibc, cgroup, kernel, etc.
+            # The image was changed from rockylinux/8 to almalinux/8,
+            # as the former one no longer works:
+            # https://github.com/containerd/containerd/pull/10297
+          - box: almalinux/8
+            cgroup_driver: cgroupfs
+            runc: runc
+          - box: almalinux/8
+            cgroup_driver: systemd
+            runc: runc
+          - box: almalinux/9
+            cgroup_driver: cgroupfs
+            runc: runc
+          - box: almalinux/9
+            cgroup_driver: systemd
+            runc: runc
     env:
       BOX: ${{ matrix.box }}
-
+      CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
+      RUNC_FLAVOR: ${{ matrix.runc }}
     steps:
       - name: Show the host info
         run: |
@@ -553,8 +570,8 @@ jobs:
           cat /etc/os-release
           cat /proc/cpuinfo
           free -mt
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: /root/.vagrant.d
           key: vagrant-${{ matrix.box }}
@@ -564,33 +581,46 @@ jobs:
           # So we have to install Vagrant >= 2.3.1 from the upstream: https://github.com/opencontainers/runc/blob/v1.1.8/.cirrus.yml#L41-L49
           curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo sed -i 's/^# deb-src/deb-src/' /etc/apt/sources.list
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
           sudo apt-get update
           sudo apt-get install -y libvirt-daemon libvirt-daemon-system vagrant ovmf
           # https://github.com/vagrant-libvirt/vagrant-libvirt/issues/1725#issuecomment-1454058646
           sudo cp /usr/share/OVMF/OVMF_VARS_4M.fd /var/lib/libvirt/qemu/nvram/
           sudo systemctl enable --now libvirtd
-          sudo apt-get build-dep -y vagrant ruby-libvirt
+          sudo apt-get build-dep -y ruby-libvirt
           sudo apt-get install -y --no-install-recommends libxslt-dev libxml2-dev libvirt-dev ruby-bundler ruby-dev zlib1g-dev
           sudo vagrant plugin install vagrant-libvirt
       - name: Boot VM
-        run: sudo BOX=$BOX vagrant up --no-tty
+        run: |
+          sudo BOX=$BOX RUNC_FLAVOR=$RUNC_FLAVOR vagrant up --no-tty
+          if  [ "$BOX" = "fedora/41-cloud-base" ]; then
+            # Install the kernel update for Fedora 41 to fix an error "Extension MARK revision 0 not supported, missing kernel module"
+            # https://bugzilla.redhat.com/show_bug.cgi?id=2321325
+            sudo BOX=$BOX RUNC_FLAVOR=$RUNC_FLAVOR vagrant up --provision-with=upgrade-packages
+            sudo BOX=$BOX RUNC_FLAVOR=$RUNC_FLAVOR vagrant halt
+            sudo BOX=$BOX RUNC_FLAVOR=$RUNC_FLAVOR vagrant up
+          fi
       - name: test-integration
-        run: sudo BOX=$BOX vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-integration
+        run: sudo BOX=$BOX RUNC_FLAVOR=$RUNC_FLAVOR vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-integration
       - name: test-cri-integration
-        run: sudo BOX=$BOX vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-cri-integration
+        run: sudo BOX=$BOX CGROUP_DRIVER=$CGROUP_DRIVER RUNC_FLAVOR=$RUNC_FLAVOR vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-cri-integration
       - name: test-cri
-        run: sudo BOX=$BOX vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-cri
+        run: sudo BOX=$BOX CGROUP_DRIVER=$CGROUP_DRIVER RUNC_FLAVOR=$RUNC_FLAVOR vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-cri
 
   tests-cri-in-userns:
     name: "CRI-in-UserNS"
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     needs: [project, linters, protos, man]
 
+    strategy:
+      fail-fast: false
+      matrix:
+        cgroup_driver: [cgroupfs, systemd]
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Set up cgroup v2 delegation
         run: |
           sudo mkdir -p /etc/systemd/system/user@.service.d
@@ -600,11 +630,35 @@ jobs:
           EOF
           sudo systemctl daemon-reload
       - name: Build cri-in-userns image
-        run: podman build --target cri-in-userns -t cri-in-userns -f ./contrib/Dockerfile.test .
+        env:
+          CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
+        run: |
+          if [ "$CGROUP_DRIVER" = "systemd" ];then
+            podman build --target cri-in-userns-systemd -t cri-in-userns-systemd -f ./contrib/Dockerfile.test .
+          else
+            podman build --target cri-in-userns -t cri-in-userns -f ./contrib/Dockerfile.test .
+          fi
+
       - name: Run cri-in-userns image
+        env:
+          CGROUP_DRIVER: ${{ matrix.cgroup_driver }}
         # Rootless Podman is used for testing CRI-in-UserNS
         # (We could use rootless Docker or rootless nerdctl, but we are using Podman here because it is preinstalled)
-        run: podman run --rm --privileged cri-in-userns
+        run: |
+          if [ "$CGROUP_DRIVER" = "systemd" ];then
+              set +e
+              touch ./critest_exit_code.txt
+              podman run --rm --privileged --group-add keep-groups -v ./critest_exit_code.txt:/tmp/critest_exit_code.txt cri-in-userns-systemd
+              exit_code=`cat ./critest_exit_code.txt`
+              echo "exit_code:"$exit_code
+              if [ "$exit_code" -gt 0 ]; then
+                exit 1
+              else
+                exit 0
+              fi
+          else
+            podman run --rm --privileged cri-in-userns
+          fi
 
   tests-mac-os:
     name: MacOS unit tests
@@ -615,7 +669,7 @@ jobs:
       GOTEST: gotestsum --
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/install-go
       - run: script/setup/install-gotestsum
       - run: script/setup/install-teststat
@@ -628,10 +682,27 @@ jobs:
         if: always()
       - run: script/test/test2annotation.sh *-gotest.json
         if: always()
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: TestResults MacOS
           path: |
             *-junit.xml
             *-gotest.json
+
+  # Currently Github actions UI supports no masks to mark matrix jobs as required to pass status checks.
+  # This means that every time version of Go, containerd, or OS is changed, a corresponding job should
+  # be added to the list of required checks. Which is not very convenient.
+  # To workaround this, a special job is added to report statuses of all other jobs, with fixed title.
+  # So it needs to be added to the list of required checks only once.
+  #
+  # See https://github.com/orgs/community/discussions/26822
+  results:
+    name: Report required job statuses
+    runs-on: ubuntu-latest
+    # List job dependencies which are required to pass status checks in order to be merged via merge queue.
+    needs: [linters, project, protos, binaries, integration-linux, integration-windows, tests-cri-in-userns, tests-mac-os]
+    if: ${{ always() }}
+    steps:
+      - run: exit 1
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}

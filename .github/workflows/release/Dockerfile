@@ -18,7 +18,7 @@ ARG BASE_IMAGE=ubuntu:${UBUNTU_VERSION}
 ARG GO_VERSION
 ARG GO_IMAGE=golang:${GO_VERSION}
 FROM --platform=$BUILDPLATFORM $GO_IMAGE AS go
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.2.1@sha256:8879a398dedf0aadaacfbd332b29ff2f84bc39ae6d4e9c0a1109db27ac5ba012 AS xx
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.6.1@sha256:923441d7c25f1e2eb5789f82d987693c47b8ed987c4ab3b075d6ed2b5d6779a3 AS xx
 
 FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS base
 COPY --from=xx / /
@@ -27,7 +27,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN	apt-get update && \
 	apt-get install -y dpkg-dev git make pkg-config
 ARG TARGETPLATFORM
-RUN xx-apt-get install -y libseccomp-dev btrfs-progs gcc
+# gcc is needed for github.com/containerd/btrfs/v2
+RUN xx-apt-get install -y gcc
 ENV PATH=/usr/local/go/bin:$PATH
 ENV GOPATH=/go
 ENV CGO_ENABLED=1
@@ -49,13 +50,13 @@ RUN \
 	--mount=type=cache,target=/root/.cache/go-build \
 	--mount=type=cache,target=/go/pkg \
 	export CC=$(xx-info)-gcc && xx-go --wrap && \
-	make release static-release cri-release cri-cni-release && \
+	make release static-release && \
 	for f in $(find bin -executable -type f); do xx-verify $f; done
 
 # check git working tree after build
 RUN \
 	export GIT_STATUS_OUTPUT=$(git status --porcelain) && \
-	test -z $GIT_STATUS_OUTPUT || (echo $GIT_STATUS_OUTPUT && exit 1)
+	test -z $GIT_STATUS_OUTPUT || (echo "repository contains uncommitted changes" && exit 1)
 
 FROM scratch AS release
 COPY --from=target /go/src/github.com/containerd/containerd/releases/ /
