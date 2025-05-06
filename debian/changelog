@@ -1,3 +1,15 @@
+containerd-app (2.0.5-0ubuntu1) questing; urgency=medium
+
+  * d/t/basic-smoke: remove shell's -u option
+  * New upstream version 2.0.5
+  * d/p/CVE-2024-40635.patch: drop patch applied upstream
+  * d/copyright: remove unused license text
+  * d/control:
+    - Replace pkg-config with pkgconf
+    - Bump Standards-Version
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Tue, 06 May 2025 19:50:35 -0300
+
 containerd-app (2.0.2-0ubuntu2) plucky; urgency=medium
 
   * SECURITY UPDATE: Integer overflow.
