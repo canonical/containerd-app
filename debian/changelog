@@ -1,3 +1,11 @@
+containerd-app (2.0.5-0ubuntu1~24.10.1) oracular; urgency=medium
+
+  * Backport from questing to oracular (LP: #2110139)
+  * d/control: build with golang 1.24
+  * d/rules: add golang 1.24 to PATH
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Wed, 07 May 2025 11:51:13 -0300
+
 containerd-app (2.0.5-0ubuntu1) questing; urgency=medium
 
   * d/t/basic-smoke: remove shell's -u option
