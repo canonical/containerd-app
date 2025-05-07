@@ -8,9 +8,9 @@ Build-Depends: debhelper-compat (= 12),
                golang-1.22-go,
                libbtrfs-dev | btrfs-progs (<< 4.16.1~),
                libseccomp-dev,
-               pkg-config,
+               pkgconf,
                procps
-Standards-Version: 4.6.2
+Standards-Version: 4.7.2
 Homepage: https://containerd.io
 Vcs-Git: https://github.com/canonical/containerd-app.git
 Vcs-Browser: https://github.com/canonical/containerd-app
