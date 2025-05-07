@@ -1,3 +1,9 @@
+containerd-app (2.0.5-0ubuntu1~25.04.1) plucky; urgency=medium
+
+  * Backport from questing to plucky (LP: #2110139)
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Wed, 07 May 2025 10:56:15 -0300
+
 containerd-app (2.0.5-0ubuntu1) questing; urgency=medium
 
   * d/t/basic-smoke: remove shell's -u option
