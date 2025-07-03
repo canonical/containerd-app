@@ -1596,7 +1596,6 @@ func TestIssue9103(t *testing.T) {
 			expectedStatus: Stopped,
 		},
 	} {
-		tc := tc
 		tName := fmt.Sprintf("%s%d", id, idx)
 		t.Run(tc.desc, func(t *testing.T) {
 			container, err := client.NewContainer(ctx, tName,

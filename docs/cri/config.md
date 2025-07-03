@@ -159,6 +159,62 @@ spec:
 
 See also [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/runtime-class/).
 
+
+## Image Pull Configuration (since containerd v2.1)
+
+### Transfer Service for Image Pull
+
+Starting with containerd v2.1, the CRI plugin uses containerd's Transfer Service for image pull by default, instead of client-based pull.
+
+To configure Transfer Service, use the following settings in your config.toml:
+
+```toml
+[plugins.'io.containerd.transfer.v1.local']
+  # Transfer service specific configurations
+  max_concurrent_downloads = 3
+  unpack_config = { ... }
+```
+
+### Local Pull Mode
+
+If you prefer to use the client-based pull method instead of the Transfer Service, you can set `use_local_image_pull = true` in your CRI image configuration:
+
+```toml
+[plugins.'io.containerd.cri.v1.images']
+  use_local_image_pull = true
+```
+
+### Configuration differences and automatic fallback to Local Mode
+
+There are some differences in how image pull configurations are specified between the Transfer Service and Local Pull mode:
+
+| CRI Image Config Option | Local Pull | Transfer Service Pull |
+|------------------------|------------|---------------------|
+| Snapshotter | ✅ Supported | ✅ Supported |
+| DisableSnapshotAnnotations | ✅ Supported | ⚠️ Must be configured in snapshotter plugin:<br>`[proxy_plugins.stargz.exports]`<br>`enable_remote_snapshot_annotations = "true"` |
+| ImagePullProgressTimeout | ✅ Supported | ✅ Supported |
+| DiscardUnpackedLayers | ✅ Supported | ❌ Not Supported |
+| PinnedImages | ✅ Supported | ✅ Supported |
+| Registry Settings | ✅ All supported | ⚠️ Only ConfigPath and Headers supported<br>(Mirrors, Configs, Auths not supported, also deprecated) |
+| ImageDecryption | ❌ Disabled | ❌ Disabled |
+| MaxConcurrentDownloads | ✅ Uses CRI Image config | ⚠️ Must be configured in transfer service plugin: `plugins."io.containerd.transfer.v1.local"` |
+| ImagePullWithSyncFs | ✅ Supported | ❌ Not Supported |
+| StatsCollectPeriod | ✅ Supported | ✅ Supported |
+
+To ensure compatibility, ***containerd 2.1 automatically detects configuration conflicts and falls back to local image pull mode when necessary***.
+
+If you have any of the following configurations in your CRI image config, containerd will automatically set `use_local_image_pull = true` and log a warning:
+
+- `DisableSnapshotAnnotations = false`
+- `DiscardUnpackedLayers = true`
+- `Registry.Mirrors` is configured
+- `Registry.Configs` is configured
+- `Registry.Auths` is configured
+- `MaxConcurrentDownloads != 3`
+- `ImagePullWithSyncFs = true`
+
+The warning message will indicate which configuration option triggered the fallback and provide guidance on how to properly configure the option when using the Transfer Service.
+
 ## Full configuration
 The explanation and default value of each configuration item are as follows:
 + In containerd 2.x
@@ -185,6 +241,7 @@ version = 3
     image_pull_progress_timeout = '5m0s'
     image_pull_with_sync_fs = false
     stats_collect_period = 10
+    use_local_image_pull = false
 
     [plugins.'io.containerd.cri.v1.images'.pinned_images]
       sandbox = 'registry.k8s.io/pause:3.10'
@@ -247,7 +304,9 @@ version = 3
             ShimCgroup = ''
 
     [plugins.'io.containerd.cri.v1.runtime'.cni]
-      bin_dir = '/opt/cni/bin'
+      # DEPRECATED, use `bin_dirs` instead (since containerd v2.1).
+      bin_dir = ''
+      bin_dirs = ['/opt/cni/bin']
       conf_dir = '/etc/cni/net.d'
       max_conf_num = 1
       setup_serially = false
@@ -327,22 +386,14 @@ version = 2
   tolerate_missing_hugetlb_controller = true
 
   # ignore_image_defined_volumes ignores volumes defined by the image. Useful for better resource
-	# isolation, security and early detection of issues in the mount configuration when using
-	# ReadOnlyRootFilesystem since containers won't silently mount a temporary volume.
+  # isolation, security and early detection of issues in the mount configuration when using
+  # ReadOnlyRootFilesystem since containers won't silently mount a temporary volume.
   ignore_image_defined_volumes = false
 
   # netns_mounts_under_state_dir places all mounts for network namespaces under StateDir/netns
   # instead of being placed under the hardcoded directory /var/run/netns. Changing this setting
   # requires that all containers are deleted.
   netns_mounts_under_state_dir = false
-
-  # 'plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming' contains a x509 valid key pair to stream with tls.
-  [plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming]
-    # tls_cert_file is the filepath to the certificate paired with the "tls_key_file"
-    tls_cert_file = ""
-
-    # tls_key_file is the filepath to the private key paired with the "tls_cert_file"
-    tls_key_file = ""
 
   # max_container_log_line_size is the maximum log line size in bytes for a container.
   # Log line longer than the limit will be split into multiple lines. -1 means no
@@ -418,6 +469,14 @@ version = 2
   # For example, the value can be '5h', '2h30m', '10s'.
   drain_exec_sync_io_timeout = "0s"
 
+  # 'plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming' contains a x509 valid key pair to stream with tls.
+  [plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming]
+    # tls_cert_file is the filepath to the certificate paired with the "tls_key_file"
+    tls_cert_file = ""
+
+    # tls_key_file is the filepath to the private key paired with the "tls_cert_file"
+    tls_key_file = ""
+
   # 'plugins."io.containerd.grpc.v1.cri".containerd' contains config related to containerd
   [plugins."io.containerd.grpc.v1.cri".containerd]
 
@@ -474,6 +533,11 @@ version = 2
       # The default value is "io.containerd.runc.v2" since containerd 1.4.
       # The default value was "io.containerd.runc.v1" in containerd 1.3, "io.containerd.runtime.v1.linux" in prior releases.
       runtime_type = "io.containerd.runc.v2"
+
+      # runtime_path is an optional field that can be used to overwrite path to a shim runtime binary.
+      # When specified, containerd will ignore runtime name field when resolving shim location.
+      # Path must be abs.
+      runtime_path = ""
 
       # pod_annotations is a list of pod annotations passed to both pod
       # sandbox as well as container OCI annotations. Pod_annotations also

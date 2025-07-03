@@ -41,7 +41,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
-	"k8s.io/klog/v2"
 
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
@@ -136,6 +135,22 @@ func WithHostNetwork(p *runtime.PodSandboxConfig) {
 		p.Linux.SecurityContext.NamespaceOptions = &runtime.NamespaceOption{}
 	}
 	p.Linux.SecurityContext.NamespaceOptions.Network = runtime.NamespaceMode_NODE
+}
+
+// Set selinux level
+func WithSelinuxLevel(level string) PodSandboxOpts {
+	return func(p *runtime.PodSandboxConfig) {
+		if p.Linux == nil {
+			p.Linux = &runtime.LinuxPodSandboxConfig{}
+		}
+		if p.Linux.SecurityContext == nil {
+			p.Linux.SecurityContext = &runtime.LinuxSandboxSecurityContext{}
+		}
+		if p.Linux.SecurityContext.SelinuxOptions == nil {
+			p.Linux.SecurityContext.SelinuxOptions = &runtime.SELinuxOption{}
+		}
+		p.Linux.SecurityContext.SelinuxOptions.Level = level
+	}
 }
 
 // Set pod userns.
@@ -236,7 +251,7 @@ func PodSandboxConfig(name, ns string, opts ...PodSandboxOpts) *runtime.PodSandb
 	var cgroupParent string
 	runtimeConfig, err := runtimeService.RuntimeConfig(&runtime.RuntimeConfigRequest{})
 	if err != nil {
-		klog.Errorf("runtime service call RuntimeConfig error %s", err.Error())
+		log.L.WithError(err).Errorf("runtime service call RuntimeConfig error")
 	} else if runtimeConfig.GetLinux().GetCgroupDriver() == runtime.CgroupDriver_SYSTEMD {
 		cgroupParent = defaultCgroupSystemdParent
 	}
@@ -333,6 +348,27 @@ func WithIDMapVolumeMount(hostPath, containerPath string, uidMaps, gidMaps []*ru
 			SelinuxRelabel: selinux.GetEnabled(),
 			UidMappings:    uidMaps,
 			GidMappings:    gidMaps,
+		}
+		c.Mounts = append(c.Mounts, mount)
+	}
+}
+
+func WithImageVolumeMount(image, containerPath string) ContainerOpts {
+	return WithIDMapImageVolumeMount(image, containerPath, nil, nil)
+}
+
+func WithIDMapImageVolumeMount(image string, containerPath string, uidMaps, gidMaps []*runtime.IDMapping) ContainerOpts {
+	return func(c *runtime.ContainerConfig) {
+		containerPath, _ = filepath.Abs(containerPath)
+		mount := &runtime.Mount{
+			ContainerPath: containerPath,
+			UidMappings:   uidMaps,
+			GidMappings:   gidMaps,
+			Image: &runtime.ImageSpec{
+				Image: image,
+			},
+			Readonly:       true,
+			SelinuxRelabel: true,
 		}
 		c.Mounts = append(c.Mounts, mount)
 	}
