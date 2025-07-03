@@ -1,7 +1,7 @@
 linters:
   enable:
     - depguard # Checks for dependencies that should not be (re)introduced. See "linter-settings" for further details.
-    # - copyloopvar # Checks for loop variable copies in Go 1.22+
+    - copyloopvar # Checks for loop variable copies in Go 1.22+
     - gofmt
     - goimports
     - gosec
@@ -23,6 +23,14 @@ issues:
     - EXC0002
   max-issues-per-linter: 0
   max-same-issues: 0
+
+  exclude-dirs:
+    - api
+    - cluster
+    - docs
+    - docs/man
+    - releases
+    - test # e2e scripts
 
   # Only using / doesn't work due to https://github.com/golangci/golangci-lint/issues/1398.
   exclude-rules:
@@ -53,6 +61,10 @@ issues:
     - linters:
         - revive
       text: "redefines-builtin-id"
+    - linters:
+        - forbidigo
+      text: 'use of `regexp.MustCompile` forbidden'
+      path: _test\.go
 
 linters-settings:
   depguard:
@@ -61,6 +73,11 @@ linters-settings:
         deny:
           - pkg: github.com/opencontainers/runc
             desc: We don't want to depend on runc (libcontainer), unless there is no other option; see https://github.com/opencontainers/runc/issues/3028.
+  forbidigo:
+    forbid:
+      - pkg: ^regexp$
+        p: ^regexp\.MustCompile
+        msg: Use internal/lazyregexp.New instead.
 
   gosec:
     # The following issues surfaced when `gosec` linter
@@ -76,14 +93,6 @@ linters-settings:
       - G115
   nolintlint:
     allow-unused: true
-
-  exclude-dirs:
-    - api
-    - cluster
-    - docs
-    - docs/man
-    - releases
-    - test # e2e scripts
 
 run:
   timeout: 8m

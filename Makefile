@@ -248,6 +248,11 @@ bin/runc-fp: integration/failpoint/cmd/runc-fp FORCE
 	@echo "$(WHALE) $@"
 	@$(GO) build ${GO_BUILD_FLAGS} -o $@ ./integration/failpoint/cmd/runc-fp
 
+# build loopback-v2 with failpoint support, only used by integration test
+bin/loopback-v2: integration/failpoint/cmd/loopback-v2 FORCE
+	@echo "$(WHALE) $@"
+	@CGO_ENABLED=${SHIM_CGO_ENABLED} $(GO) build ${GO_BUILD_FLAGS} -o $@ ./integration/failpoint/cmd/loopback-v2
+
 benchmark: ## run benchmarks tests
 	@echo "$(WHALE) $@"
 	@$(GO) test ${TESTFLAGS} -bench . -run Benchmark -test.root
@@ -275,7 +280,7 @@ bin/containerd-shim-runc-v2: cmd/containerd-shim-runc-v2 FORCE # set !cgo and om
 binaries: $(BINARIES) ## build binaries
 	@echo "$(WHALE) $@"
 
-man: mandir $(addprefix man/,$(MANPAGES))
+man: $(addprefix man/,$(MANPAGES))
 	@echo "$(WHALE) $@"
 
 mandir:
@@ -284,15 +289,15 @@ mandir:
 # Kept for backwards compatibility
 genman: man/containerd.8 man/ctr.8
 
-man/containerd.8: bin/gen-manpages FORCE
+man/containerd.8: bin/gen-manpages FORCE | mandir
 	@echo "$(WHALE) $@"
 	$< $(@F) $(@D)
 
-man/ctr.8: bin/gen-manpages FORCE
+man/ctr.8: bin/gen-manpages FORCE | mandir
 	@echo "$(WHALE) $@"
 	$< $(@F) $(@D)
 
-man/%: docs/man/%.md FORCE
+man/%: docs/man/%.md FORCE | mandir
 	@echo "$(WHALE) $@"
 	go-md2man -in "$<" -out "$@"
 

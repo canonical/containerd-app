@@ -28,6 +28,7 @@ import (
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/cmd/ctr/commands"
 	"github.com/containerd/containerd/v2/cmd/ctr/commands/content"
+	"github.com/containerd/containerd/v2/core/diff"
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/transfer"
 	"github.com/containerd/containerd/v2/core/transfer/image"
@@ -84,6 +85,10 @@ command. As part of this process, we do the following:
 			Name:  "local",
 			Usage: "Fetch content from local client rather than using transfer service",
 		},
+		&cli.BoolFlag{
+			Name:  "sync-fs",
+			Usage: "Synchronize the underlying filesystem containing files when unpack images, false by default",
+		},
 	),
 	Action: func(cliContext *cli.Context) error {
 		var (
@@ -101,7 +106,7 @@ command. As part of this process, we do the following:
 
 		if !cliContext.Bool("local") {
 			unsupportedFlags := []string{"max-concurrent-downloads", "print-chainid",
-				"skip-verify", "tlscacert", "tlscert", "tlskey", "http-dump", "http-trace", // RegistryFlags
+				"skip-verify", "tlscacert", "tlscert", "tlskey", // RegistryFlags
 			}
 			for _, s := range unsupportedFlags {
 				if cliContext.IsSet(s) {
@@ -147,9 +152,19 @@ command. As part of this process, we do the following:
 				sopts = append(sopts, image.WithImageLabels(commands.LabelArgs(labels)))
 			}
 
-			opts := []registry.Opt{registry.WithCredentials(ch), registry.WithHostDir(cliContext.String("hosts-dir"))}
+			opts := []registry.Opt{
+				registry.WithCredentials(ch),
+				registry.WithHostDir(cliContext.String("hosts-dir")),
+			}
 			if cliContext.Bool("plain-http") {
 				opts = append(opts, registry.WithDefaultScheme("http"))
+			}
+			logStream := log.G(ctx).Writer()
+			if cliContext.Bool("http-dump") {
+				opts = append(opts, registry.WithHTTPDebug(), registry.WithClientStream(logStream))
+			}
+			if cliContext.Bool("http-trace") {
+				opts = append(opts, registry.WithHTTPTrace(), registry.WithClientStream(logStream))
 			}
 			reg, err := registry.NewOCIRegistry(ctx, ref, opts...)
 			if err != nil {
@@ -204,7 +219,7 @@ command. As part of this process, we do the following:
 		for _, platform := range p {
 			fmt.Printf("unpacking %s %s...\n", platforms.Format(platform), img.Target.Digest)
 			i := containerd.NewImageWithPlatform(client, img, platforms.Only(platform))
-			err = i.Unpack(ctx, cliContext.String("snapshotter"))
+			err = i.Unpack(ctx, cliContext.String("snapshotter"), containerd.WithUnpackApplyOpts(diff.WithSyncFs(cliContext.Bool("sync-fs"))))
 			if err != nil {
 				return err
 			}
