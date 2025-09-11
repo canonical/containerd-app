@@ -1,3 +1,12 @@
+containerd-app (1.7.28-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * New upstream version 1.7.28 (LP: #2112523)
+  * Build with Go 1.23.
+    - d/control: b-d on golang-1.23-go instead of golang-1.22-go
+    - d/rules: add Go 1.23 to $PATH
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 11 Sep 2025 13:55:37 -0300
+
 containerd-app (1.7.27-0ubuntu1~24.04.1) noble; urgency=medium
 
   * New upstream version 1.7.27. (LP: #2085187)
