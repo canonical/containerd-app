@@ -19,8 +19,6 @@ Package: containerd
 Architecture: linux-any
 Depends: runc, ${misc:Depends}, ${shlibs:Depends}
 Breaks: docker.io (<< 19.03.13-0ubuntu4)
-Conflicts: containerd
-Replaces: containerd
 Built-Using: ${misc:Built-Using}
 Description: daemon to control runC
  Containerd is a daemon to control runC, built for performance and density.
@@ -29,7 +27,3 @@ Description: daemon to control runC
  migration of containers.
  .
  This package contains the binaries.
- .
- This package is frequently updated to new Containerd upstream versions, which
- may include new features and often introduce breaking changes. If you want
- stability, use containerd-stable instead.
