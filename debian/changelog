@@ -1,3 +1,11 @@
+containerd-app (2.1.3-0ubuntu3~25.04.1) plucky; urgency=medium
+
+  * Backport from questing to plucky (LP: #2112523)
+    - d/control: do not include adjustments for containerd-stable present in
+      questing since containerd-stable is not available in plucky
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 11 Sep 2025 10:00:34 -0300
+
 containerd-app (2.1.3-0ubuntu3) questing; urgency=medium
 
   * d/control: adjust for new containerd-stable package in the archive
