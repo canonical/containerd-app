@@ -165,7 +165,7 @@ func load(path string) error {
 	return nil
 }
 
-// macroExists checks if the passed macro exists.
+// macrosExists checks if the passed macro exists.
 func macroExists(m string) bool {
 	_, err := os.Stat(path.Join(dir, m))
 	return err == nil

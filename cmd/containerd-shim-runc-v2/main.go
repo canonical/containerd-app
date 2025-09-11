@@ -21,11 +21,12 @@ package main
 import (
 	"context"
 
-	"github.com/containerd/containerd/v2/cmd/containerd-shim-runc-v2/manager"
-	_ "github.com/containerd/containerd/v2/cmd/containerd-shim-runc-v2/task/plugin"
-	"github.com/containerd/containerd/v2/pkg/shim"
+	"github.com/containerd/containerd/runtime/v2/runc/manager"
+	_ "github.com/containerd/containerd/runtime/v2/runc/pause"
+	_ "github.com/containerd/containerd/runtime/v2/runc/task/plugin"
+	"github.com/containerd/containerd/runtime/v2/shim"
 )
 
 func main() {
-	shim.Run(context.Background(), manager.NewShimManager("io.containerd.runc.v2"))
+	shim.RunManager(context.Background(), manager.NewShimManager("io.containerd.runc.v2"))
 }

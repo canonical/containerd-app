@@ -15,7 +15,7 @@
 all: build
 
 PROJ=ghcr.io/containerd
-VERSION=2.2
+VERSION=2.1
 IMAGE=$(PROJ)/volume-copy-up:$(VERSION)
 DOCKER_CERT_PATH ?= "$(HOME)/.docker"
 REMOTE_DOCKER_URL ?=
@@ -33,8 +33,8 @@ endif
 OS ?= linux
 # Architectures supported: amd64, arm64
 ARCH ?= amd64
-# OS Version for the Windows images: ltsc2022, ltsc2025
-OSVERSION ?= ltsc2022
+# OS Version for the Windows images: 1809, 20H2, ltsc2022
+OSVERSION ?= 1809
 
 # The output type could either be docker (local), or registry.
 # If it is registry, it will also allow us to push the Windows images.
@@ -46,7 +46,7 @@ ALL_OS_ARCH.linux = $(foreach arch, ${ALL_ARCH.linux}, linux-$(arch))
 
 ifneq ($(REMOTE_DOCKER_URL),)
 ALL_OS += windows
-ALL_OSVERSIONS.windows := ltsc2022 ltsc2025
+ALL_OSVERSIONS.windows := 1809 20H2 ltsc2022
 ALL_OS_ARCH.windows = $(foreach osversion, ${ALL_OSVERSIONS.windows}, windows-amd64-${osversion})
 BASE.windows := mcr.microsoft.com/windows/nanoserver
 endif
@@ -81,7 +81,7 @@ sub-container-%:
 container: .container-${OS}-$(ARCH)
 
 .container-linux-$(ARCH):
-	docker buildx build --provenance=false --pull --output=type=${OUTPUT_TYPE} --platform ${OS}/${ARCH} \
+	docker buildx build --pull --output=type=${OUTPUT_TYPE} --platform ${OS}/${ARCH} \
 		-t $(IMAGE)-${OS}-${ARCH} --build-arg BASE=${BASE} .
 
 .container-windows-$(ARCH):

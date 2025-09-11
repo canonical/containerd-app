@@ -24,7 +24,7 @@ import (
 	"github.com/containers/ocicrypt/config"
 	"github.com/containers/ocicrypt/keywrap"
 	"github.com/containers/ocicrypt/utils"
-	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v3"
 )
 
 type jweKeyWrapper struct {
@@ -65,11 +65,7 @@ func (kw *jweKeyWrapper) WrapKeys(ec *config.EncryptConfig, optsData []byte) ([]
 }
 
 func (kw *jweKeyWrapper) UnwrapKey(dc *config.DecryptConfig, jweString []byte) ([]byte, error) {
-	// cf. list of algorithms in func addPubKeys() below
-	keyEncryptionAlgorithms := []jose.KeyAlgorithm{jose.RSA_OAEP, jose.RSA_OAEP_256, jose.ECDH_ES_A128KW, jose.ECDH_ES_A192KW, jose.ECDH_ES_A256KW}
-	// accept all algorithms defined in RFC 7518, section 5.1
-	contentEncryption := []jose.ContentEncryption{jose.A128CBC_HS256, jose.A192CBC_HS384, jose.A256CBC_HS512, jose.A128GCM, jose.A192GCM, jose.A256GCM}
-	jwe, err := jose.ParseEncrypted(string(jweString), keyEncryptionAlgorithms, contentEncryption)
+	jwe, err := jose.ParseEncrypted(string(jweString))
 	if err != nil {
 		return nil, errors.New("jose.ParseEncrypted failed")
 	}

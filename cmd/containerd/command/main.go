@@ -17,7 +17,7 @@
 package command
 
 import (
-	"context"
+	gocontext "context"
 	"fmt"
 	"io"
 	"net"
@@ -27,17 +27,18 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/containerd/containerd/v2/cmd/containerd/server"
-	srvconfig "github.com/containerd/containerd/v2/cmd/containerd/server/config"
-	_ "github.com/containerd/containerd/v2/core/metrics" // import containerd build info
-	"github.com/containerd/containerd/v2/core/mount"
-	"github.com/containerd/containerd/v2/defaults"
-	"github.com/containerd/containerd/v2/pkg/sys"
-	"github.com/containerd/containerd/v2/version"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 	"google.golang.org/grpc/grpclog"
+
+	"github.com/containerd/containerd/defaults"
+	"github.com/containerd/containerd/errdefs"
+	_ "github.com/containerd/containerd/metrics" // import containerd build info
+	"github.com/containerd/containerd/mount"
+	"github.com/containerd/containerd/services/server"
+	srvconfig "github.com/containerd/containerd/services/server/config"
+	"github.com/containerd/containerd/sys"
+	"github.com/containerd/containerd/version"
 )
 
 const usage = `
@@ -54,18 +55,8 @@ func init() {
 	// Discard grpc logs so that they don't mess with our stdio
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
 
-	cli.VersionPrinter = func(cliContext *cli.Context) {
-		fmt.Println(cliContext.App.Name, version.Package, cliContext.App.Version, version.Revision)
-	}
-	cli.VersionFlag = &cli.BoolFlag{
-		Name:    "version",
-		Aliases: []string{"v"},
-		Usage:   "Print the version",
-	}
-	cli.HelpFlag = &cli.BoolFlag{
-		Name:    "help",
-		Aliases: []string{"h"},
-		Usage:   "Show help",
+	cli.VersionPrinter = func(c *cli.Context) {
+		fmt.Println(c.App.Name, version.Package, c.App.Version, version.Revision)
 	}
 }
 
@@ -87,43 +78,40 @@ at the default file location. The *containerd config* command can be used to
 generate the default configuration for containerd. The output of that command
 can be used and modified as necessary as a custom configuration.`
 	app.Flags = []cli.Flag{
-		&cli.StringFlag{
-			Name:    "config",
-			Aliases: []string{"c"},
-			Usage:   "Path to the configuration file",
-			Value:   filepath.Join(defaults.DefaultConfigDir, "config.toml"),
+		cli.StringFlag{
+			Name:  "config,c",
+			Usage: "Path to the configuration file",
+			Value: filepath.Join(defaults.DefaultConfigDir, "config.toml"),
 		},
-		&cli.StringFlag{
-			Name:    "log-level",
-			Aliases: []string{"l"},
-			Usage:   "Set the logging level [trace, debug, info, warn, error, fatal, panic]",
+		cli.StringFlag{
+			Name:  "log-level,l",
+			Usage: "Set the logging level [trace, debug, info, warn, error, fatal, panic]",
 		},
-		&cli.StringFlag{
-			Name:    "address",
-			Aliases: []string{"a"},
-			Usage:   "Address for containerd's GRPC server",
+		cli.StringFlag{
+			Name:  "address,a",
+			Usage: "Address for containerd's GRPC server",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "root",
 			Usage: "containerd root directory",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "state",
 			Usage: "containerd state directory",
 		},
 	}
 	app.Flags = append(app.Flags, serviceFlags()...)
-	app.Commands = []*cli.Command{
+	app.Commands = []cli.Command{
 		configCommand,
 		publishCommand,
 		ociHook,
 	}
-	app.Action = func(cliContext *cli.Context) error {
+	app.Action = func(context *cli.Context) error {
 		var (
 			start       = time.Now()
 			signals     = make(chan os.Signal, 2048)
 			serverC     = make(chan *server.Server, 1)
-			ctx, cancel = context.WithCancel(cliContext.Context)
+			ctx, cancel = gocontext.WithCancel(gocontext.Background())
 			config      = defaultConfig()
 		)
 
@@ -131,16 +119,16 @@ can be used and modified as necessary as a custom configuration.`
 
 		// Only try to load the config if it either exists, or the user explicitly
 		// told us to load this path.
-		configPath := cliContext.String("config")
+		configPath := context.GlobalString("config")
 		_, err := os.Stat(configPath)
-		if !os.IsNotExist(err) || cliContext.IsSet("config") {
-			if err := srvconfig.LoadConfig(ctx, configPath, config); err != nil {
+		if !os.IsNotExist(err) || context.GlobalIsSet("config") {
+			if err := srvconfig.LoadConfig(configPath, config); err != nil {
 				return err
 			}
 		}
 
 		// Apply flags to the config
-		if err := applyFlags(cliContext, config); err != nil {
+		if err := applyFlags(context, config); err != nil {
 			return err
 		}
 
@@ -303,7 +291,7 @@ can be used and modified as necessary as a custom configuration.`
 	return app
 }
 
-func serve(ctx context.Context, l net.Listener, serveFunc func(net.Listener) error) {
+func serve(ctx gocontext.Context, l net.Listener, serveFunc func(net.Listener) error) {
 	path := l.Addr().String()
 	log.G(ctx).WithField("address", path).Info("serving...")
 	go func() {
@@ -314,10 +302,10 @@ func serve(ctx context.Context, l net.Listener, serveFunc func(net.Listener) err
 	}()
 }
 
-func applyFlags(cliContext *cli.Context, config *srvconfig.Config) error {
+func applyFlags(context *cli.Context, config *srvconfig.Config) error {
 	// the order for config vs flag values is that flags will always override
 	// the config values if they are set
-	if err := setLogLevel(cliContext, config); err != nil {
+	if err := setLogLevel(context, config); err != nil {
 		return err
 	}
 	if err := setLogFormat(config); err != nil {
@@ -341,7 +329,7 @@ func applyFlags(cliContext *cli.Context, config *srvconfig.Config) error {
 			d:    &config.GRPC.Address,
 		},
 	} {
-		if s := cliContext.String(v.name); s != "" {
+		if s := context.GlobalString(v.name); s != "" {
 			*v.d = s
 			if v.name == "root" || v.name == "state" {
 				absPath, err := filepath.Abs(s)
@@ -353,13 +341,13 @@ func applyFlags(cliContext *cli.Context, config *srvconfig.Config) error {
 		}
 	}
 
-	applyPlatformFlags(cliContext)
+	applyPlatformFlags(context)
 
 	return nil
 }
 
-func setLogLevel(cliContext *cli.Context, config *srvconfig.Config) error {
-	l := cliContext.String("log-level")
+func setLogLevel(context *cli.Context, config *srvconfig.Config) error {
+	l := context.GlobalString("log-level")
 	if l == "" {
 		l = config.Debug.Level
 	}

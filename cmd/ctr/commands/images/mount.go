@@ -17,23 +17,21 @@
 package images
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/core/diff"
-	"github.com/containerd/containerd/v2/core/leases"
-	"github.com/containerd/containerd/v2/core/mount"
-	"github.com/containerd/containerd/v2/defaults"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/platforms"
 	"github.com/opencontainers/image-spec/identity"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
+
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/mount"
 )
 
-var mountCommand = &cli.Command{
+var mountCommand = cli.Command{
 	Name:      "mount",
 	Usage:     "Mount an image to a target path",
 	ArgsUsage: "[flags] <ref> <target>",
@@ -42,47 +40,45 @@ var mountCommand = &cli.Command{
 When you are done, use the unmount command.
 `,
 	Flags: append(append(commands.RegistryFlags, append(commands.SnapshotterFlags, commands.LabelFlag)...),
-		&cli.BoolFlag{
+		cli.BoolFlag{
 			Name:  "rw",
 			Usage: "Enable write support on the mount",
 		},
-		&cli.StringFlag{
+		cli.StringFlag{
 			Name:  "platform",
 			Usage: "Mount the image for the specified platform",
-			Value: platforms.DefaultString(),
-		},
-		&cli.BoolFlag{
-			Name:  "sync-fs",
-			Usage: "Synchronize the underlying filesystem containing files when unpack images, false by default",
+			Value: platforms.Format(platforms.DefaultSpec()), // For 1.7 continue using the old format without os-version included.
 		},
 	),
-	Action: func(cliContext *cli.Context) (retErr error) {
+	Action: func(context *cli.Context) (retErr error) {
 		var (
-			ref    = cliContext.Args().First()
-			target = cliContext.Args().Get(1)
+			ref    = context.Args().First()
+			target = context.Args().Get(1)
 		)
 		if ref == "" {
-			return errors.New("please provide an image reference to mount")
+			return fmt.Errorf("please provide an image reference to mount")
 		}
 		if target == "" {
-			return errors.New("please provide a target path to mount to")
+			return fmt.Errorf("please provide a target path to mount to")
 		}
 
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
 		defer cancel()
 
-		snapshotter := cliContext.String("snapshotter")
+		snapshotter := context.String("snapshotter")
 		if snapshotter == "" {
-			snapshotter = defaults.DefaultSnapshotter
+			snapshotter = containerd.DefaultSnapshotter
 		}
 
 		ctx, done, err := client.WithLease(ctx,
 			leases.WithID(target),
 			leases.WithExpiration(24*time.Hour),
-			leases.WithLabel("containerd.io/gc.ref.snapshot."+snapshotter, target),
+			leases.WithLabels(map[string]string{
+				"containerd.io/gc.ref.snapshot." + snapshotter: target,
+			}),
 		)
 		if err != nil && !errdefs.IsAlreadyExists(err) {
 			return err
@@ -94,7 +90,7 @@ When you are done, use the unmount command.
 			}
 		}()
 
-		ps := cliContext.String("platform")
+		ps := context.String("platform")
 		p, err := platforms.Parse(ps)
 		if err != nil {
 			return fmt.Errorf("unable to parse platform %s: %w", ps, err)
@@ -106,7 +102,7 @@ When you are done, use the unmount command.
 		}
 
 		i := containerd.NewImageWithPlatform(client, img, platforms.Only(p))
-		if err := i.Unpack(ctx, snapshotter, containerd.WithUnpackApplyOpts(diff.WithSyncFs(cliContext.Bool("sync-fs")))); err != nil {
+		if err := i.Unpack(ctx, snapshotter); err != nil {
 			return fmt.Errorf("error unpacking image: %w", err)
 		}
 
@@ -120,7 +116,7 @@ When you are done, use the unmount command.
 		s := client.SnapshotService(snapshotter)
 
 		var mounts []mount.Mount
-		if cliContext.Bool("rw") {
+		if context.Bool("rw") {
 			mounts, err = s.Prepare(ctx, target, chainID)
 		} else {
 			mounts, err = s.View(ctx, target, chainID)
@@ -136,12 +132,12 @@ When you are done, use the unmount command.
 
 		if err := mount.All(mounts, target); err != nil {
 			if err := s.Remove(ctx, target); err != nil && !errdefs.IsNotFound(err) {
-				fmt.Fprintln(cliContext.App.ErrWriter, "Error cleaning up snapshot after mount error:", err)
+				fmt.Fprintln(context.App.ErrWriter, "Error cleaning up snapshot after mount error:", err)
 			}
 			return err
 		}
 
-		fmt.Fprintln(cliContext.App.Writer, target)
+		fmt.Fprintln(context.App.Writer, target)
 		return nil
 	},
 }

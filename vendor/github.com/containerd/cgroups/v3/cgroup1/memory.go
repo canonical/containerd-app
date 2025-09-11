@@ -433,7 +433,7 @@ func getMemorySettings(resources *specs.LinuxResources) []memorySettings {
 		},
 		{
 			name:  "kmem.limit_in_bytes",
-			value: mem.Kernel, //nolint:staticcheck // SA1019: mem.Kernel is deprecated
+			value: mem.Kernel,
 		},
 		{
 			name:  "kmem.tcp.limit_in_bytes",
@@ -453,9 +453,6 @@ func getMemorySettings(resources *specs.LinuxResources) []memorySettings {
 func getOomControlValue(mem *specs.LinuxMemory) *int64 {
 	if mem.DisableOOMKiller != nil && *mem.DisableOOMKiller {
 		i := int64(1)
-		return &i
-	} else if mem.DisableOOMKiller != nil && !*mem.DisableOOMKiller {
-		i := int64(0)
 		return &i
 	}
 	return nil

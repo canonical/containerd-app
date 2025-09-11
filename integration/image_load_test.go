@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd/v2/integration/client"
-	"github.com/containerd/containerd/v2/integration/images"
+	"github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/integration/platform"
 	"github.com/stretchr/testify/require"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
@@ -35,7 +35,7 @@ func TestImageLoad(t *testing.T) {
 	// image manifest of `testImage` on WS2025 host. Temporarily
 	// skipping this test for WS2025 while its fixed on docker.
 	// This test is validated on WS2022 anyway.
-	if goruntime.GOOS == "windows" && client.SkipTestOnHost() {
+	if goruntime.GOOS == "windows" && platform.SkipTestOnHost() {
 		t.Skip("Temporarily skip validating on WS2025")
 	}
 
@@ -65,10 +65,8 @@ func TestImageLoad(t *testing.T) {
 	t.Logf("load image in cri")
 	ctr, err := exec.LookPath("ctr")
 	require.NoError(t, err, "ctr should be installed, make sure you've run `make install-deps`")
-	// Add --local=true option since currently the transfer service
-	// does not provide enough progress to avoid timeout
 	output, err = exec.Command(ctr, "-address="+containerdEndpoint,
-		"-n=k8s.io", "images", "import", "--local=true", tar).CombinedOutput()
+		"-n=k8s.io", "images", "import", tar).CombinedOutput()
 	require.NoError(t, err, "output: %q", output)
 
 	t.Logf("make sure image is loaded")

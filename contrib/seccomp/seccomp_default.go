@@ -23,7 +23,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/containerd/containerd/v2/pkg/kernelversion"
+	"github.com/containerd/containerd/contrib/seccomp/kernelversion"
 	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -46,8 +46,6 @@ func arches() []specs.Arch {
 	case "riscv64":
 		// ArchRISCV32 (SCMP_ARCH_RISCV32) does not exist
 		return []specs.Arch{specs.ArchRISCV64}
-	case "loong64":
-		return []specs.Arch{specs.ArchLOONGARCH64}
 	default:
 		return []specs.Arch{}
 	}
@@ -190,6 +188,9 @@ func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
 				"ioprio_set",
 				"io_setup",
 				"io_submit",
+				"io_uring_enter",
+				"io_uring_register",
+				"io_uring_setup",
 				"ipc",
 				"kill",
 				"landlock_add_rule",

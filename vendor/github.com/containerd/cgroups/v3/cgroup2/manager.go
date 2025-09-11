@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -31,10 +30,10 @@ import (
 
 	"github.com/containerd/cgroups/v3/cgroup2/stats"
 
-	"github.com/containerd/log"
 	systemdDbus "github.com/coreos/go-systemd/v22/dbus"
 	"github.com/godbus/dbus/v5"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -242,10 +241,8 @@ func setResources(path string, resources *Resources) error {
 type CgroupType string
 
 const (
-	Domain         CgroupType = "domain"
-	DomainThreaded CgroupType = "domain threaded"
-	DomainInvalid  CgroupType = "domain invalid"
-	Threaded       CgroupType = "threaded"
+	Domain   CgroupType = "domain"
+	Threaded CgroupType = "threaded"
 )
 
 func (c *Manager) GetType() (CgroupType, error) {
@@ -319,7 +316,7 @@ func (c *Manager) ToggleControllers(controllers []string, t ControllerToggle) er
 		}
 		filePath := filepath.Join(f, subtreeControl)
 		if err := c.writeSubtreeControl(filePath, controllers, t); err != nil {
-			// When running as rootless, the user may face EPERM on parent groups, but it is negligible when the
+			// When running as rootless, the user may face EPERM on parent groups, but it is neglible when the
 			// controller is already written.
 			// So we only return the last error.
 			lastErr = fmt.Errorf("failed to write subtree controllers %+v to %q: %w", controllers, filePath, err)
@@ -403,7 +400,7 @@ func (c *Manager) Kill() error {
 	if err == nil {
 		return nil
 	}
-	log.L.Warnf("falling back to slower kill implementation: %s", err)
+	logrus.Warnf("falling back to slower kill implementation: %s", err)
 	// Fallback to slow method.
 	return c.fallbackKill()
 }
@@ -416,15 +413,13 @@ func (c *Manager) Kill() error {
 //
 // https://github.com/opencontainers/runc/blob/8da0a0b5675764feaaaaad466f6567a9983fcd08/libcontainer/init_linux.go#L523-L529
 func (c *Manager) fallbackKill() error {
-	logger := log.G(context.TODO()).WithFields(log.Fields{"path": c.path})
-
 	if err := c.Freeze(); err != nil {
-		logger.WithError(err).Warn("freezing cgroup2.manager")
+		logrus.Warn(err)
 	}
 	pids, err := c.Procs(true)
 	if err != nil {
 		if err := c.Thaw(); err != nil {
-			logger.WithError(err).Warn("thawing cgroup2.manager")
+			logrus.Warn(err)
 		}
 		return err
 	}
@@ -432,16 +427,16 @@ func (c *Manager) fallbackKill() error {
 	for _, pid := range pids {
 		p, err := os.FindProcess(int(pid))
 		if err != nil {
-			logger.WithFields(log.Fields{"error": err, "pid": int(pid)}).Warnf("finding process")
+			logrus.Warn(err)
 			continue
 		}
 		procs = append(procs, p)
 		if err := p.Signal(unix.SIGKILL); err != nil {
-			logger.WithFields(log.Fields{"error": err, "pid": int(pid)}).Warnf("signaling process")
+			logrus.Warn(err)
 		}
 	}
 	if err := c.Thaw(); err != nil {
-		logger.WithError(err).Warn("thawing cgroup2.manager")
+		logrus.Warn(err)
 	}
 
 	subreaper, err := getSubreaper()
@@ -463,7 +458,7 @@ func (c *Manager) fallbackKill() error {
 		if subreaper == 0 {
 			if _, err := p.Wait(); err != nil {
 				if !errors.Is(err, unix.ECHILD) {
-					logger.WithFields(log.Fields{"error": err, "pid": p.Pid}).Warn("waiting on process")
+					logrus.Warnf("wait on pid %d failed: %s", p.Pid, err)
 				}
 			}
 		}
@@ -472,36 +467,20 @@ func (c *Manager) fallbackKill() error {
 }
 
 func (c *Manager) Delete() error {
-	// Kernel prevents cgroups with running process from being removed,
-	// check the tree is empty.
-	//
-	// Pick the right file to read based on the cgs type.
-	cgType, err := c.GetType()
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	}
-
-	var tasks []uint64
-	switch cgType {
-	case Threaded, DomainThreaded:
-		tasks, err = c.Threads(true)
-	default:
-		tasks, err = c.Procs(true)
-	}
+	// kernel prevents cgroups with running process from being removed, check the tree is empty
+	processes, err := c.Procs(true)
 	if err != nil {
 		return err
 	}
-	if len(tasks) > 0 {
-		return fmt.Errorf("cgroups: unable to remove path %q: still contains running tasks", c.path)
+	if len(processes) > 0 {
+		return fmt.Errorf("cgroups: unable to remove path %q: still contains running processes", c.path)
 	}
 	return remove(c.path)
 }
 
-func (c *Manager) getTasks(recursive bool, tType string) ([]uint64, error) {
-	var tasks []uint64
-	err := filepath.Walk(c.path, func(p string, info fs.FileInfo, err error) error {
+func (c *Manager) Procs(recursive bool) ([]uint64, error) {
+	var processes []uint64
+	err := filepath.Walk(c.path, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -512,25 +491,17 @@ func (c *Manager) getTasks(recursive bool, tType string) ([]uint64, error) {
 			return filepath.SkipDir
 		}
 		_, name := filepath.Split(p)
-		if name != tType {
+		if name != cgroupProcs {
 			return nil
 		}
-		curTasks, err := parseCgroupTasksFile(p)
+		procs, err := parseCgroupProcsFile(p)
 		if err != nil {
 			return err
 		}
-		tasks = append(tasks, curTasks...)
+		processes = append(processes, procs...)
 		return nil
 	})
-	return tasks, err
-}
-
-func (c *Manager) Procs(recursive bool) ([]uint64, error) {
-	return c.getTasks(recursive, cgroupProcs)
-}
-
-func (c *Manager) Threads(recursive bool) ([]uint64, error) {
-	return c.getTasks(recursive, cgroupThreads)
+	return processes, err
 }
 
 func (c *Manager) MoveTo(destination *Manager) error {
@@ -588,7 +559,6 @@ func (c *Manager) Stat() (*stats.Metrics, error) {
 		NrPeriods:     out["nr_periods"],
 		NrThrottled:   out["nr_throttled"],
 		ThrottledUsec: out["throttled_usec"],
-		PSI:           getStatPSIFromFile(filepath.Join(c.path, "cpu.pressure")),
 	}
 	metrics.Memory = &stats.MemoryStat{
 		Anon:                  out["anon"],
@@ -624,11 +594,8 @@ func (c *Manager) Stat() (*stats.Metrics, error) {
 		ThpCollapseAlloc:      out["thp_collapse_alloc"],
 		Usage:                 getStatFileContentUint64(filepath.Join(c.path, "memory.current")),
 		UsageLimit:            getStatFileContentUint64(filepath.Join(c.path, "memory.max")),
-		MaxUsage:              getStatFileContentUint64(filepath.Join(c.path, "memory.peak")),
 		SwapUsage:             getStatFileContentUint64(filepath.Join(c.path, "memory.swap.current")),
 		SwapLimit:             getStatFileContentUint64(filepath.Join(c.path, "memory.swap.max")),
-		SwapMaxUsage:          getStatFileContentUint64(filepath.Join(c.path, "memory.swap.peak")),
-		PSI:                   getStatPSIFromFile(filepath.Join(c.path, "memory.pressure")),
 	}
 	if len(memoryEvents) > 0 {
 		metrics.MemoryEvents = &stats.MemoryEvents{
@@ -639,10 +606,7 @@ func (c *Manager) Stat() (*stats.Metrics, error) {
 			OomKill: memoryEvents["oom_kill"],
 		}
 	}
-	metrics.Io = &stats.IOStat{
-		Usage: readIoStats(c.path),
-		PSI:   getStatPSIFromFile(filepath.Join(c.path, "io.pressure")),
-	}
+	metrics.Io = &stats.IOStat{Usage: readIoStats(c.path)}
 	metrics.Rdma = &stats.RdmaStat{
 		Current: rdmaStats(filepath.Join(c.path, "rdma.current")),
 		Limit:   rdmaStats(filepath.Join(c.path, "rdma.max")),
@@ -712,7 +676,7 @@ func (c *Manager) MemoryEventFD() (int, uint32, error) {
 	fpath := filepath.Join(c.path, "memory.events")
 	fd, err := unix.InotifyInit()
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to create inotify fd: %w", err)
+		return 0, 0, errors.New("failed to create inotify fd")
 	}
 	wd, err := unix.InotifyAddWatch(fd, fpath, unix.IN_MODIFY)
 	if err != nil {
@@ -906,70 +870,20 @@ func NewSystemd(slice, group string, pid int, resources *Resources) (*Manager, e
 			newSystemdProperty("TasksMax", uint64(resources.Pids.Max)))
 	}
 
-	if err := startUnit(conn, group, properties, pid == -1); err != nil {
+	statusChan := make(chan string, 1)
+	if _, err := conn.StartTransientUnitContext(ctx, group, "replace", properties, statusChan); err == nil {
+		select {
+		case <-statusChan:
+		case <-time.After(time.Second):
+			logrus.Warnf("Timed out while waiting for StartTransientUnit(%s) completion signal from dbus. Continuing...", group)
+		}
+	} else if !isUnitExists(err) {
 		return &Manager{}, err
 	}
 
 	return &Manager{
 		path: path,
 	}, nil
-}
-
-func startUnit(conn *systemdDbus.Conn, group string, properties []systemdDbus.Property, ignoreExists bool) error {
-	ctx := context.TODO()
-
-	statusChan := make(chan string, 1)
-	defer close(statusChan)
-
-	retry := true
-	started := false
-
-	for !started {
-		if _, err := conn.StartTransientUnitContext(ctx, group, "replace", properties, statusChan); err != nil {
-			if !isUnitExists(err) {
-				return err
-			}
-
-			if ignoreExists {
-				return nil
-			}
-
-			if retry {
-				retry = false
-				// When a unit of the same name already exists, it may be a leftover failed unit.
-				// If we reset it once, systemd can try to remove it.
-				attemptFailedUnitReset(conn, group)
-				continue
-			}
-
-			return err
-		} else {
-			started = true
-		}
-	}
-
-	systemdStartUnitTimeout := 30 * time.Second
-	select {
-	case s := <-statusChan:
-		if s != "done" {
-			attemptFailedUnitReset(conn, group)
-			return fmt.Errorf("error creating systemd unit `%s`: got `%s`", group, s)
-		}
-	case <-time.After(systemdStartUnitTimeout):
-		attemptFailedUnitReset(conn, group)
-		return fmt.Errorf("timed out while waiting for StartTransientUnit(%s) completion signal from dbus after %v", group, systemdStartUnitTimeout)
-	}
-
-	return nil
-}
-
-func attemptFailedUnitReset(conn *systemdDbus.Conn, group string) {
-	ctx := context.TODO()
-	err := conn.ResetFailedUnitContext(ctx, group)
-
-	if err != nil {
-		log.G(ctx).Warnf("Unable to reset failed unit: %v", err)
-	}
 }
 
 func LoadSystemd(slice, group string) (*Manager, error) {

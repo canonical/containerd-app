@@ -18,22 +18,25 @@ package commands
 
 import (
 	"bufio"
-	"context"
+	gocontext "context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptrace"
+	"net/http/httputil"
 	"os"
 	"strings"
 
 	"github.com/containerd/console"
-	"github.com/containerd/containerd/v2/core/remotes"
-	"github.com/containerd/containerd/v2/core/remotes/docker"
-	"github.com/containerd/containerd/v2/core/remotes/docker/config"
-	"github.com/containerd/containerd/v2/core/transfer/registry"
-	"github.com/containerd/containerd/v2/pkg/httpdbg"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd/pkg/transfer/registry"
+	"github.com/containerd/containerd/remotes"
+	"github.com/containerd/containerd/remotes/docker"
+	"github.com/containerd/containerd/remotes/docker/config"
+	"github.com/containerd/log"
+	"github.com/urfave/cli"
 )
 
 // PushTracker returns a new InMemoryTracker which tracks the ref status
@@ -55,8 +58,8 @@ func passwordPrompt() (string, error) {
 }
 
 // GetResolver prepares the resolver from the environment and options
-func GetResolver(ctx context.Context, cliContext *cli.Context) (remotes.Resolver, error) {
-	username := cliContext.String("user")
+func GetResolver(ctx gocontext.Context, clicontext *cli.Context) (remotes.Resolver, error) {
+	username := clicontext.String("user")
 	var secret string
 	if i := strings.IndexByte(username, ':'); i > 0 {
 		secret = username[i+1:]
@@ -77,7 +80,7 @@ func GetResolver(ctx context.Context, cliContext *cli.Context) (remotes.Resolver
 
 			fmt.Print("\n")
 		}
-	} else if rt := cliContext.String("refresh"); rt != "" {
+	} else if rt := clicontext.String("refresh"); rt != "" {
 		secret = rt
 	}
 
@@ -87,21 +90,24 @@ func GetResolver(ctx context.Context, cliContext *cli.Context) (remotes.Resolver
 		// Only one host
 		return username, secret, nil
 	}
-	if cliContext.Bool("plain-http") {
+	if clicontext.Bool("plain-http") {
 		hostOptions.DefaultScheme = "http"
 	}
-	defaultTLS, err := resolverDefaultTLS(cliContext)
+	defaultTLS, err := resolverDefaultTLS(clicontext)
 	if err != nil {
 		return nil, err
 	}
 	hostOptions.DefaultTLS = defaultTLS
-	if hostDir := cliContext.String("hosts-dir"); hostDir != "" {
+	if hostDir := clicontext.String("hosts-dir"); hostDir != "" {
 		hostOptions.HostDir = config.HostDirFromRoot(hostDir)
 	}
 
-	if cliContext.Bool("http-dump") {
+	if clicontext.Bool("http-dump") {
 		hostOptions.UpdateClient = func(client *http.Client) error {
-			httpdbg.DumpRequests(ctx, client, nil)
+			client.Transport = &DebugTransport{
+				transport: client.Transport,
+				writer:    log.G(ctx).Writer(),
+			}
 			return nil
 		}
 	}
@@ -111,27 +117,27 @@ func GetResolver(ctx context.Context, cliContext *cli.Context) (remotes.Resolver
 	return docker.NewResolver(options), nil
 }
 
-func resolverDefaultTLS(cliContext *cli.Context) (*tls.Config, error) {
-	tlsConfig := &tls.Config{}
+func resolverDefaultTLS(clicontext *cli.Context) (*tls.Config, error) {
+	config := &tls.Config{}
 
-	if cliContext.Bool("skip-verify") {
-		tlsConfig.InsecureSkipVerify = true
+	if clicontext.Bool("skip-verify") {
+		config.InsecureSkipVerify = true
 	}
 
-	if tlsRootPath := cliContext.String("tlscacert"); tlsRootPath != "" {
+	if tlsRootPath := clicontext.String("tlscacert"); tlsRootPath != "" {
 		tlsRootData, err := os.ReadFile(tlsRootPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %q: %w", tlsRootPath, err)
 		}
 
-		tlsConfig.RootCAs = x509.NewCertPool()
-		if !tlsConfig.RootCAs.AppendCertsFromPEM(tlsRootData) {
+		config.RootCAs = x509.NewCertPool()
+		if !config.RootCAs.AppendCertsFromPEM(tlsRootData) {
 			return nil, fmt.Errorf("failed to load TLS CAs from %q: invalid data", tlsRootPath)
 		}
 	}
 
-	tlsCertPath := cliContext.String("tlscert")
-	tlsKeyPath := cliContext.String("tlskey")
+	tlsCertPath := clicontext.String("tlscert")
+	tlsKeyPath := clicontext.String("tlskey")
 	if tlsCertPath != "" || tlsKeyPath != "" {
 		if tlsCertPath == "" || tlsKeyPath == "" {
 			return nil, errors.New("flags --tlscert and --tlskey must be set together")
@@ -140,15 +146,74 @@ func resolverDefaultTLS(cliContext *cli.Context) (*tls.Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS client credentials (cert=%q, key=%q): %w", tlsCertPath, tlsKeyPath, err)
 		}
-		tlsConfig.Certificates = []tls.Certificate{keyPair}
+		config.Certificates = []tls.Certificate{keyPair}
 	}
 
 	// If nothing was set, return nil rather than empty config
-	if !tlsConfig.InsecureSkipVerify && tlsConfig.RootCAs == nil && tlsConfig.Certificates == nil {
+	if !config.InsecureSkipVerify && config.RootCAs == nil && config.Certificates == nil {
 		return nil, nil
 	}
 
-	return tlsConfig, nil
+	return config, nil
+}
+
+// DebugTransport wraps the underlying http.RoundTripper interface and dumps all requests/responses to the writer.
+type DebugTransport struct {
+	transport http.RoundTripper
+	writer    io.Writer
+}
+
+// RoundTrip dumps request/responses and executes the request using the underlying transport.
+func (t DebugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	in, err := httputil.DumpRequestOut(req, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dump request: %w", err)
+	}
+
+	if _, err := t.writer.Write(in); err != nil {
+		return nil, err
+	}
+
+	resp, err := t.transport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dump response: %w", err)
+	}
+
+	if _, err := t.writer.Write(out); err != nil {
+		return nil, err
+	}
+
+	return resp, err
+}
+
+// NewDebugClientTrace returns a Go http trace client predefined to write DNS and connection
+// information to the log. This is used via the --http-trace flag on push and pull operations in ctr.
+func NewDebugClientTrace(ctx gocontext.Context) *httptrace.ClientTrace {
+	return &httptrace.ClientTrace{
+		DNSStart: func(dnsInfo httptrace.DNSStartInfo) {
+			log.G(ctx).WithField("host", dnsInfo.Host).Debugf("DNS lookup")
+		},
+		DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+			if dnsInfo.Err != nil {
+				log.G(ctx).WithField("lookup_err", dnsInfo.Err).Debugf("DNS lookup error")
+			} else {
+				log.G(ctx).WithField("result", dnsInfo.Addrs[0].String()).WithField("coalesced", dnsInfo.Coalesced).Debugf("DNS lookup complete")
+			}
+		},
+		GotConn: func(connInfo httptrace.GotConnInfo) {
+			remoteAddr := "<nil>"
+			if addr := connInfo.Conn.RemoteAddr(); addr != nil {
+				remoteAddr = addr.String()
+			}
+
+			log.G(ctx).WithField("reused", connInfo.Reused).WithField("remote_addr", remoteAddr).Debugf("Connection successful")
+		},
+	}
 }
 
 type staticCredentials struct {
@@ -158,8 +223,8 @@ type staticCredentials struct {
 }
 
 // NewStaticCredentials gets credentials from passing in cli context
-func NewStaticCredentials(ctx context.Context, cliContext *cli.Context, ref string) (registry.CredentialHelper, error) {
-	username := cliContext.String("user")
+func NewStaticCredentials(ctx gocontext.Context, clicontext *cli.Context, ref string) (registry.CredentialHelper, error) {
+	username := clicontext.String("user")
 	var secret string
 	if i := strings.IndexByte(username, ':'); i > 0 {
 		secret = username[i+1:]
@@ -177,7 +242,7 @@ func NewStaticCredentials(ctx context.Context, cliContext *cli.Context, ref stri
 
 			fmt.Print("\n")
 		}
-	} else if rt := cliContext.String("refresh"); rt != "" {
+	} else if rt := clicontext.String("refresh"); rt != "" {
 		secret = rt
 	}
 
@@ -188,7 +253,7 @@ func NewStaticCredentials(ctx context.Context, cliContext *cli.Context, ref stri
 	}, nil
 }
 
-func (sc *staticCredentials) GetCredentials(ctx context.Context, ref, host string) (registry.Credentials, error) {
+func (sc *staticCredentials) GetCredentials(ctx gocontext.Context, ref, host string) (registry.Credentials, error) {
 	if ref == sc.ref {
 		return registry.Credentials{
 			Username: sc.username,

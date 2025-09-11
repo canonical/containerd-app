@@ -16,7 +16,4 @@
 
 package builtins
 
-import (
-	_ "github.com/containerd/containerd/v2/plugins/diff/walking/plugin"
-	_ "github.com/containerd/zfs/v2/plugin"
-)
+import _ "github.com/containerd/zfs/plugin"

@@ -29,7 +29,7 @@ compile_fuzzers() {
         if [[ "$line" =~ (.*)/.*:.*(Fuzz[A-Za-z0-9]+) ]]; then
             local pkg=${BASH_REMATCH[1]}
             local func=${BASH_REMATCH[2]}
-            "$compile_fuzzer" "github.com/containerd/containerd/v2/$pkg" "$func" "fuzz_$func"
+            "$compile_fuzzer" "github.com/containerd/containerd/$pkg" "$func" "fuzz_$func"
         else
             echo "failed to parse: $line"
             exit 1
@@ -37,31 +37,22 @@ compile_fuzzers() {
     done
 }
 
-# This is from https://github.com/AdamKorcz/instrumentation
-cd $SRC/instrumentation
-go run main.go --target_dir $SRC/containerd/images
-
 apt-get update && apt-get install -y wget
 cd $SRC
-wget --quiet https://go.dev/dl/go1.24.4.linux-amd64.tar.gz
+wget --quiet https://go.dev/dl/go1.23.11.linux-amd64.tar.gz
 
 mkdir temp-go
 rm -rf /root/.go/*
-tar -C temp-go/ -xzf go1.24.4.linux-amd64.tar.gz
+tar -C temp-go/ -xzf go1.23.11.linux-amd64.tar.gz
 mv temp-go/go/* /root/.go/
 cd $SRC/containerd
 
-printf "package client\nimport _ \"github.com/AdamKorcz/go-118-fuzz-build/testing\"\n" > client/registerfuzzdep.go
 go mod tidy
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 cd ../../
 
 rm -r vendor
-
-# Add temporary CXXFLAGS
-OLDCXXFLAGS=$CXXFLAGS
-export CXXFLAGS="$CXXFLAGS -lresolv"
 
 # Change path of socket since OSS-fuzz does not grant access to /run
 sed -i 's/\/run\/containerd/\/tmp\/containerd/g' $SRC/containerd/defaults/defaults_unix.go
@@ -96,10 +87,7 @@ sed -i 's/\/run\/containerd-test/\/tmp\/containerd-test/g' $SRC/containerd/integ
 
 cd integration/client
 
-compile_fuzzers '^func FuzzInteg.*testing\.F' compile_native_go_fuzzer vendor
+compile_fuzzers '^func FuzzInteg.*data' compile_go_fuzzer vendor
 
 cp $SRC/containerd/contrib/fuzz/*.options $OUT/
 cp $SRC/containerd/contrib/fuzz/*.dict $OUT/
-
-# Resume CXXFLAGS
-export CXXFLAGS=$OLDCXXFLAGS

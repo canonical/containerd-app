@@ -66,13 +66,13 @@ func (p *pidsController) Stat(path string, stats *v1.Metrics) error {
 	if err != nil {
 		return err
 	}
-	pidsMax, err := readUint(filepath.Join(p.Path(path), "pids.max"))
+	max, err := readUint(filepath.Join(p.Path(path), "pids.max"))
 	if err != nil {
 		return err
 	}
 	stats.Pids = &v1.PidsStat{
 		Current: current,
-		Limit:   pidsMax,
+		Limit:   max,
 	}
 	return nil
 }

@@ -40,7 +40,7 @@ func NewNetNS(baseDir string) (*NetNS, error) {
 	return &NetNS{path: hcnNamespace.Id}, nil
 }
 
-// NewNetNSFromPID returns the netns from pid or a new netns if pid is 0.
+// NewNetNS returns the netns from pid or a new netns if pid is 0.
 func NewNetNSFromPID(baseDir string, pid uint32) (*NetNS, error) {
 	return nil, errNotImplementedOnWindows
 }

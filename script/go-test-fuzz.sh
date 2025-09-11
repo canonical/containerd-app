@@ -15,21 +15,15 @@
 #   limitations under the License.
 
 # Running Go 1.18's fuzzing for 30 seconds each. While this would be too
-# short to actually find issues, we want to make sure that these fuzzing
+# short to acutally find issues, we want to make sure that these fuzzing
 # tests are not fundamentally broken.
 
 set -euo pipefail
-set -x
 
 fuzztime=30s
-# keep the filename and Fuzz function name so we can run every fuzz test
-# in a package separately (`go test -fuzz` only supports single fuzz function)
-pkgs=$(git grep 'func Fuzz.*testing\.F' | grep -o '.*testing\.F)' | grep -v -E "vendor" | sort | uniq)
+pkgs=$(git grep 'func Fuzz.*testing\.F' | grep -o '.*\/' | sort | uniq)
 
-IFS=$'\n'
 for pkg in $pkgs
 do
-    pkg_path=$(echo $pkg | grep -o '.*/')
-    fuzz_name=$(echo $pkg | grep -o 'Fuzz[^(]*')
-    go test -fuzz=$fuzz_name ./$pkg_path -fuzztime=$fuzztime
+    go test -fuzz=. ./$pkg -fuzztime=$fuzztime
 done

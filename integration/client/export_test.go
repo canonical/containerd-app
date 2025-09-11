@@ -25,15 +25,16 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/core/images/archive"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/platforms"
 	"github.com/google/uuid"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	. "github.com/containerd/containerd"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/images/archive"
+	"github.com/containerd/containerd/namespaces"
 )
 
 func TestExportAllCases(t *testing.T) {
@@ -109,7 +110,7 @@ func TestExportAllCases(t *testing.T) {
 				return img
 			},
 			check: func(ctx context.Context, t *testing.T, client *Client, dstFile *os.File, img images.Image) {
-				err := client.Export(ctx, dstFile, archive.WithImage(client.ImageService(), testImage), archive.WithPlatform(platforms.All))
+				err := client.Export(ctx, dstFile, archive.WithImage(client.ImageService(), testImage), archive.WithPlatform(platforms.All), archive.WithImage(client.ImageService(), testImage))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -234,6 +235,7 @@ func TestExportAllCases(t *testing.T) {
 			},
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := testContext(t)
@@ -340,10 +342,10 @@ func assertOCITar(t *testing.T, r io.Reader, docker bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if h.Name == ocispec.ImageLayoutFile {
+		if h.Name == "oci-layout" {
 			foundOCILayout = true
 		}
-		if h.Name == ocispec.ImageIndexFile {
+		if h.Name == "index.json" {
 			foundIndexJSON = true
 		}
 		if h.Name == "manifest.json" {

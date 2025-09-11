@@ -97,7 +97,7 @@ func CreateComputeSystem(ctx context.Context, id string, hcsDocumentInterface in
 	events, err := processAsyncHcsResult(ctx, createError, resultJSON, computeSystem.callbackNumber,
 		hcsNotificationSystemCreateCompleted, &timeout.SystemCreate)
 	if err != nil {
-		if errors.Is(err, ErrTimeout) {
+		if err == ErrTimeout {
 			// Terminate the compute system if it still exists. We're okay to
 			// ignore a failure here.
 			_ = computeSystem.Terminate(ctx)
@@ -238,10 +238,9 @@ func (computeSystem *System) Shutdown(ctx context.Context) error {
 
 	resultJSON, err := vmcompute.HcsShutdownComputeSystem(ctx, computeSystem.handle, "")
 	events := processHcsResult(ctx, resultJSON)
-	if err != nil &&
-		!errors.Is(err, ErrVmcomputeAlreadyStopped) &&
-		!errors.Is(err, ErrComputeSystemDoesNotExist) &&
-		!errors.Is(err, ErrVmcomputeOperationPending) {
+	switch err {
+	case nil, ErrVmcomputeAlreadyStopped, ErrComputeSystemDoesNotExist, ErrVmcomputeOperationPending:
+	default:
 		return makeSystemError(computeSystem, operation, err, events)
 	}
 	return nil
@@ -260,10 +259,9 @@ func (computeSystem *System) Terminate(ctx context.Context) error {
 
 	resultJSON, err := vmcompute.HcsTerminateComputeSystem(ctx, computeSystem.handle, "")
 	events := processHcsResult(ctx, resultJSON)
-	if err != nil &&
-		!errors.Is(err, ErrVmcomputeAlreadyStopped) &&
-		!errors.Is(err, ErrComputeSystemDoesNotExist) &&
-		!errors.Is(err, ErrVmcomputeOperationPending) {
+	switch err {
+	case nil, ErrVmcomputeAlreadyStopped, ErrComputeSystemDoesNotExist, ErrVmcomputeOperationPending:
+	default:
 		return makeSystemError(computeSystem, operation, err, events)
 	}
 	return nil
@@ -281,13 +279,14 @@ func (computeSystem *System) waitBackground() {
 	span.AddAttributes(trace.StringAttribute("cid", computeSystem.id))
 
 	err := waitForNotification(ctx, computeSystem.callbackNumber, hcsNotificationSystemExited, nil)
-	if err == nil {
+	switch err {
+	case nil:
 		log.G(ctx).Debug("system exited")
-	} else if errors.Is(err, ErrVmcomputeUnexpectedExit) {
+	case ErrVmcomputeUnexpectedExit:
 		log.G(ctx).Debug("unexpected system exit")
 		computeSystem.exitError = makeSystemError(computeSystem, operation, err, nil)
 		err = nil
-	} else {
+	default:
 		err = makeSystemError(computeSystem, operation, err, nil)
 	}
 	computeSystem.closedWaitOnce.Do(func() {
@@ -305,22 +304,11 @@ func (computeSystem *System) WaitError() error {
 	return computeSystem.waitError
 }
 
-// Wait synchronously waits for the compute system to shutdown or terminate.
-// If the compute system has already exited returns the previous error (if any).
+// Wait synchronously waits for the compute system to shutdown or terminate. If
+// the compute system has already exited returns the previous error (if any).
 func (computeSystem *System) Wait() error {
-	return computeSystem.WaitCtx(context.Background())
-}
-
-// WaitCtx synchronously waits for the compute system to shutdown or terminate, or the context to be cancelled.
-//
-// See [System.Wait] for more information.
-func (computeSystem *System) WaitCtx(ctx context.Context) error {
-	select {
-	case <-computeSystem.WaitChannel():
-		return computeSystem.WaitError()
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	<-computeSystem.WaitChannel()
+	return computeSystem.WaitError()
 }
 
 // stopped returns true if the compute system stopped.
@@ -747,17 +735,9 @@ func (computeSystem *System) OpenProcess(ctx context.Context, pid int) (*Process
 }
 
 // Close cleans up any state associated with the compute system but does not terminate or wait for it.
-func (computeSystem *System) Close() error {
-	return computeSystem.CloseCtx(context.Background())
-}
-
-// CloseCtx is similar to [System.Close], but accepts a context.
-//
-// The context is used for all operations, including waits, so timeouts/cancellations may prevent
-// proper system cleanup.
-func (computeSystem *System) CloseCtx(ctx context.Context) (err error) {
+func (computeSystem *System) Close() (err error) {
 	operation := "hcs::System::Close"
-	ctx, span := oc.StartSpan(ctx, operation)
+	ctx, span := oc.StartSpan(context.Background(), operation)
 	defer span.End()
 	defer func() { oc.SetSpanStatus(span, err) }()
 	span.AddAttributes(trace.StringAttribute("cid", computeSystem.id))

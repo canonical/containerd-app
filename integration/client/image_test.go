@@ -23,14 +23,14 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/defaults"
-	imagelist "github.com/containerd/containerd/v2/integration/images"
-	"github.com/containerd/containerd/v2/pkg/labels"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/platforms"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	. "github.com/containerd/containerd"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	imagelist "github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/labels"
 )
 
 func TestImageIsUnpacked(t *testing.T) {
@@ -58,7 +58,7 @@ func TestImageIsUnpacked(t *testing.T) {
 	}
 
 	// Check that image is not unpacked
-	unpacked, err := image.IsUnpacked(ctx, defaults.DefaultSnapshotter)
+	unpacked, err := image.IsUnpacked(ctx, DefaultSnapshotter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,11 +67,11 @@ func TestImageIsUnpacked(t *testing.T) {
 	}
 
 	// Check that image is unpacked
-	err = image.Unpack(ctx, defaults.DefaultSnapshotter)
+	err = image.Unpack(ctx, DefaultSnapshotter)
 	if err != nil {
 		t.Fatal(err)
 	}
-	unpacked, err = image.IsUnpacked(ctx, defaults.DefaultSnapshotter)
+	unpacked, err = image.IsUnpacked(ctx, DefaultSnapshotter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestImageUsage(t *testing.T) {
 		t.Fatalf("Expected actual usage to equal manifest reported usage of %d: got %d", s3, s)
 	}
 
-	err = image.Unpack(ctx, defaults.DefaultSnapshotter)
+	err = image.Unpack(ctx, DefaultSnapshotter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestImageSupportedBySnapshotter_Error(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		unsupportedImage = "registry.k8s.io/pause-amd64:3.2"
 	} else {
-		unsupportedImage = "ghcr.io/containerd/windows/nanoserver:1809"
+		unsupportedImage = "mcr.microsoft.com/windows/nanoserver:1809"
 	}
 
 	ctx, cancel := testContext(t)
@@ -255,13 +255,14 @@ func TestImageSupportedBySnapshotter_Error(t *testing.T) {
 	}
 
 	_, err = client.Pull(ctx, unsupportedImage,
+		WithSchema1Conversion,
 		WithPlatform(platforms.DefaultString()),
-		WithPullSnapshotter(defaults.DefaultSnapshotter),
+		WithPullSnapshotter(DefaultSnapshotter),
 		WithPullUnpack,
 		WithUnpackOpts([]UnpackOpt{WithSnapshotterPlatformCheck()}),
 	)
 
 	if err == nil {
-		t.Fatalf("expected unpacking %s for snapshotter %s to fail", unsupportedImage, defaults.DefaultSnapshotter)
+		t.Fatalf("expected unpacking %s for snapshotter %s to fail", unsupportedImage, DefaultSnapshotter)
 	}
 }

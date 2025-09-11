@@ -17,37 +17,37 @@
 package commands
 
 import (
-	"context"
+	gocontext "context"
 	"os"
 	"os/signal"
 	"syscall"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/errdefs"
-	"github.com/containerd/log"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/sirupsen/logrus"
 )
 
 type killer interface {
-	Kill(context.Context, syscall.Signal, ...containerd.KillOpts) error
+	Kill(gocontext.Context, syscall.Signal, ...containerd.KillOpts) error
 }
 
 // ForwardAllSignals forwards signals
-func ForwardAllSignals(ctx context.Context, task killer) chan os.Signal {
+func ForwardAllSignals(ctx gocontext.Context, task killer) chan os.Signal {
 	sigc := make(chan os.Signal, 128)
 	signal.Notify(sigc)
 	go func() {
 		for s := range sigc {
 			if canIgnoreSignal(s) {
-				log.L.Debugf("Ignoring signal %s", s)
+				logrus.Debugf("Ignoring signal %s", s)
 				continue
 			}
-			log.L.Debug("forwarding signal ", s)
+			logrus.Debug("forwarding signal ", s)
 			if err := task.Kill(ctx, s.(syscall.Signal)); err != nil {
 				if errdefs.IsNotFound(err) {
-					log.L.WithError(err).Debugf("Not forwarding signal %s", s)
+					logrus.WithError(err).Debugf("Not forwarding signal %s", s)
 					return
 				}
-				log.L.WithError(err).Errorf("forward signal %s", s)
+				logrus.WithError(err).Errorf("forward signal %s", s)
 			}
 		}
 	}()

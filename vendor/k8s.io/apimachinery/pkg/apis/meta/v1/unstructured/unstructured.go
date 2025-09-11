@@ -101,11 +101,6 @@ func (obj *Unstructured) EachListItem(fn func(runtime.Object) error) error {
 	return nil
 }
 
-func (obj *Unstructured) EachListItemWithAlloc(fn func(runtime.Object) error) error {
-	// EachListItem has allocated a new Object for the user, we can use it directly.
-	return obj.EachListItem(fn)
-}
-
 func (obj *Unstructured) UnstructuredContent() map[string]interface{} {
 	if obj.Object == nil {
 		return make(map[string]interface{})
@@ -450,12 +445,8 @@ func (u *Unstructured) SetFinalizers(finalizers []string) {
 }
 
 func (u *Unstructured) GetManagedFields() []metav1.ManagedFieldsEntry {
-	v, found, err := NestedFieldNoCopy(u.Object, "metadata", "managedFields")
+	items, found, err := NestedSlice(u.Object, "metadata", "managedFields")
 	if !found || err != nil {
-		return nil
-	}
-	items, ok := v.([]interface{})
-	if !ok {
 		return nil
 	}
 	managedFields := []metav1.ManagedFieldsEntry{}

@@ -24,15 +24,15 @@ import (
 
 	cgroupsv2 "github.com/containerd/cgroups/v3/cgroup2"
 	eventstypes "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/v2/core/events"
-	"github.com/containerd/containerd/v2/core/runtime"
-	"github.com/containerd/containerd/v2/pkg/oom"
-	"github.com/containerd/log"
+	"github.com/containerd/containerd/pkg/oom"
+	"github.com/containerd/containerd/runtime"
+	"github.com/containerd/containerd/runtime/v2/shim"
+	"github.com/sirupsen/logrus"
 )
 
 // New returns an implementation that listens to OOM events
 // from a container's cgroups.
-func New(publisher events.Publisher) (oom.Watcher, error) {
+func New(publisher shim.Publisher) (oom.Watcher, error) {
 	return &watcher{
 		itemCh:    make(chan item),
 		publisher: publisher,
@@ -42,7 +42,7 @@ func New(publisher events.Publisher) (oom.Watcher, error) {
 // watcher implementation for handling OOM events from a container's cgroup
 type watcher struct {
 	itemCh    chan item
-	publisher events.Publisher
+	publisher shim.Publisher
 }
 
 type item struct {
@@ -74,7 +74,7 @@ func (w *watcher) Run(ctx context.Context) {
 				if err := w.publisher.Publish(ctx, runtime.TaskOOMEventTopic, &eventstypes.TaskOOM{
 					ContainerID: i.id,
 				}); err != nil {
-					log.G(ctx).WithError(err).Error("publish OOM event")
+					logrus.WithError(err).Error("publish OOM event")
 				}
 			}
 			if i.ev.OOMKill > 0 {
@@ -106,7 +106,7 @@ func (w *watcher) Add(id string, cgx interface{}) error {
 					i.err = err
 					w.itemCh <- i
 					// we no longer get any event/err when we got an err
-					log.L.WithError(err).Warn("error from *cgroupsv2.Manager.EventChan")
+					logrus.WithError(err).Warn("error from *cgroupsv2.Manager.EventChan")
 				}
 				return
 			}
