@@ -166,6 +166,7 @@ func loadOCISpec(filename string) (*oci.Spec, error) {
 }
 
 // Set glog level.
+// TODO: mikebrow remove this klog inititialization func once we are no longer vendoring k8s.io/klog
 func setGLogLevel() error {
 	l := log.GetLevel()
 	fs := flag.NewFlagSet("klog", flag.PanicOnError)
@@ -206,6 +207,9 @@ func configMigration(ctx context.Context, configVersion int, pluginConfigs map[s
 func migrateConfig(dst, src map[string]interface{}) {
 	for k, v := range src {
 		switch k {
+		case "cni":
+			// skip (handled separately below)
+			continue
 		case "containerd":
 			// skip (handled separately below)
 			continue
@@ -233,6 +237,28 @@ func migrateConfig(dst, src map[string]interface{}) {
 				dst[k] = v
 			}
 		}
+	}
+
+	if cniConf, ok := src["cni"].(map[string]interface{}); ok {
+		newCniConf, ok := dst["cni"].(map[string]interface{})
+		if !ok {
+			newCniConf = map[string]interface{}{}
+		}
+		for k, v := range cniConf {
+			switch k {
+			case "bin_dir":
+				// migrate `bin_dir` to `bin_dirs` only if `bin_dirs`
+				// is not already set
+				if binDirs, ok := newCniConf["bin_dirs"].([]string); !ok || len(binDirs) == 0 {
+					newCniConf["bin_dirs"] = []string{v.(string)}
+				}
+			default:
+				if _, ok := newCniConf[k]; !ok {
+					newCniConf[k] = v
+				}
+			}
+		}
+		dst["cni"] = newCniConf
 	}
 
 	// migrate cri containerd configs

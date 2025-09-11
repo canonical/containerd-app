@@ -60,7 +60,6 @@ import (
 	sbproxy "github.com/containerd/containerd/v2/core/sandbox/proxy"
 	ssproxy "github.com/containerd/containerd/v2/core/snapshots/proxy"
 	"github.com/containerd/containerd/v2/defaults"
-	"github.com/containerd/containerd/v2/pkg/deprecation"
 	"github.com/containerd/containerd/v2/pkg/dialer"
 	"github.com/containerd/containerd/v2/pkg/sys"
 	"github.com/containerd/containerd/v2/pkg/timeout"
@@ -265,7 +264,7 @@ func New(ctx context.Context, config *srvconfig.Config) (*Server, error) {
 	for _, p := range loaded {
 		id := p.URI()
 		log.G(ctx).WithFields(log.Fields{"id": id, "type": p.Type}).Info("loading plugin")
-		var mustSucceed int32
+		var mustSucceed atomic.Int32
 
 		initContext := plugin.NewContext(
 			ctx,
@@ -278,7 +277,7 @@ func New(ctx context.Context, config *srvconfig.Config) (*Server, error) {
 			},
 		)
 		initContext.RegisterReadiness = func() func() {
-			atomic.StoreInt32(&mustSucceed, 1)
+			mustSucceed.Store(1)
 			return s.RegisterReadiness()
 		}
 
@@ -306,7 +305,7 @@ func New(ctx context.Context, config *srvconfig.Config) (*Server, error) {
 				return nil, fmt.Errorf("load required plugin %s: %w", id, err)
 			}
 			// If readiness was registered during initialization, the plugin cannot fail
-			if atomic.LoadInt32(&mustSucceed) != 0 {
+			if mustSucceed.Load() != 0 {
 				return nil, fmt.Errorf("plugin failed after registering readiness %s: %w", id, err)
 			}
 			continue
@@ -374,9 +373,8 @@ func recordConfigDeprecations(ctx context.Context, config *srvconfig.Config, set
 		return
 	}
 
-	if config.PluginDir != "" { //nolint:staticcheck
-		warn.Emit(ctx, deprecation.GoPluginLibrary)
-	}
+	// warn.Emit(ctx, deprecation...) will be used for future deprecations
+	_ = warn
 }
 
 // Server is the containerd main daemon
@@ -471,17 +469,6 @@ func (s *Server) Wait() {
 // of all plugins.
 func LoadPlugins(ctx context.Context, config *srvconfig.Config) ([]plugin.Registration, error) {
 	// load all plugins into containerd
-	path := config.PluginDir //nolint:staticcheck
-	if path == "" {
-		path = filepath.Join(config.Root, "plugins")
-	}
-	if count, err := loadDynamic(path); err != nil {
-		return nil, err
-	} else if count > 0 || config.PluginDir != "" { //nolint:staticcheck
-		config.PluginDir = path //nolint:staticcheck
-		log.G(ctx).Warningf("loaded %d dynamic plugins. `go_plugin` is deprecated, please use `external plugins` instead", count)
-	}
-
 	clients := &proxyClients{}
 	for name, pp := range config.ProxyPlugins {
 		var (

@@ -36,6 +36,7 @@ import (
 	"github.com/containerd/containerd/v2/contrib/nvidia"
 	"github.com/containerd/containerd/v2/contrib/seccomp"
 	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/diff"
 	"github.com/containerd/containerd/v2/core/snapshots"
 	cdispec "github.com/containerd/containerd/v2/pkg/cdi"
 	"github.com/containerd/containerd/v2/pkg/oci"
@@ -151,7 +152,7 @@ func NewContainer(ctx context.Context, client *containerd.Client, cliContext *cl
 				return nil, err
 			}
 			if !unpacked {
-				if err := image.Unpack(ctx, snapshotter); err != nil {
+				if err := image.Unpack(ctx, snapshotter, containerd.WithUnpackApplyOpts(diff.WithSyncFs(cliContext.Bool("sync-fs")))); err != nil {
 					return nil, err
 				}
 			}
@@ -177,11 +178,7 @@ func NewContainer(ctx context.Context, client *containerd.Client, cliContext *cl
 				// fuse-overlayfs - https://github.com/containerd/fuse-overlayfs-snapshotter
 				// overlay - in case of idmapped mount points are supported by host kernel (Linux kernel 5.19)
 				if cliContext.Bool("remap-labels") {
-					// TODO: the optimization code path on id mapped mounts only supports single mapping entry today.
-					if len(uidSpec) > 1 || len(gidSpec) > 1 {
-						return nil, errors.New("'remap-labels' option does not support multiple mappings")
-					}
-					cOpts = append(cOpts, containerd.WithNewSnapshot(id, image, containerd.WithRemapperLabels(0, uidSpec[0].HostID, 0, gidSpec[0].HostID, uidSpec[0].Size)))
+					cOpts = append(cOpts, containerd.WithNewSnapshot(id, image, containerd.WithUserNSRemapperLabels(uidSpec, gidSpec)))
 				} else {
 					cOpts = append(cOpts, containerd.WithUserNSRemappedSnapshot(id, image, uidSpec, gidSpec))
 				}

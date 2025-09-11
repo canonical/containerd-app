@@ -6,11 +6,16 @@ set -x
 systemctl stop containerd
 
 # set proxy env variables
-export HTTP_PROXY="${http_proxy}"
-export HTTPS_PROXY="${https_proxy}"
+mkdir -p /run/systemd/system/containerd.service.d/
+cat > /run/systemd/system/containerd.service.d/proxy.conf<<EOF
+[Service]
+Environment=http_proxy=${http_proxy} HTTP_PROXY=${http_proxy} https_proxy=${https_proxy} HTTPS_PROXY=${https_proxy}
+EOF
+
+systemctl daemon-reload
 
 # start up containerd
-containerd &
+systemctl start containerd
 
 # pull the "busybox" image from Docker Hub
 ctr images pull docker.io/library/busybox:latest

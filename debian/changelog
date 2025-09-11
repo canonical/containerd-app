@@ -1,8 +1,24 @@
-containerd-app (2.0.5-0ubuntu1~25.04.1) plucky; urgency=medium
+containerd-app (2.1.3-0ubuntu3) questing; urgency=medium
 
-  * Backport from questing to plucky (LP: #2110139)
+  * d/control: adjust for new containerd-stable package in the archive
+    - Conflics/Replaces containerd
+    - Update package description
 
- -- Athos Ribeiro <athos.ribeiro@canonical.com>  Wed, 07 May 2025 10:56:15 -0300
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Fri, 29 Aug 2025 15:01:05 -0300
+
+containerd-app (2.1.3-0ubuntu2) questing; urgency=medium
+
+  * d/t/basic-smoke: use systemctl to start the service (LP: #2118738)
+
+ -- Andreas Hasenack <andreas@canonical.com>  Tue, 05 Aug 2025 10:16:03 -0300
+
+containerd-app (2.1.3-0ubuntu1) questing; urgency=medium
+
+  * New upstream version 2.1.3
+  * d/containerd.docs: update NOTICE files
+  * d/copyright: update copyright data
+
+ -- Athos Ribeiro <athos.ribeiro@canonical.com>  Thu, 03 Jul 2025 11:25:51 -0300
 
 containerd-app (2.0.5-0ubuntu1) questing; urgency=medium
 

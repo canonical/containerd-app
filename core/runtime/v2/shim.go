@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 
+	crmetadata "github.com/checkpoint-restore/checkpointctl/lib"
 	eventstypes "github.com/containerd/containerd/api/events"
 	task "github.com/containerd/containerd/api/runtime/task/v3"
 	"github.com/containerd/containerd/api/types"
@@ -45,6 +46,8 @@ import (
 
 	"github.com/containerd/containerd/v2/core/events/exchange"
 	"github.com/containerd/containerd/v2/core/runtime"
+	"github.com/containerd/containerd/v2/pkg/archive"
+	"github.com/containerd/containerd/v2/pkg/archive/compression"
 	"github.com/containerd/containerd/v2/pkg/atomicfile"
 	"github.com/containerd/containerd/v2/pkg/dialer"
 	"github.com/containerd/containerd/v2/pkg/identifiers"
@@ -135,7 +138,7 @@ func cleanupAfterDeadShim(ctx context.Context, id string, rt *runtime.NSMap[Shim
 	ctx, cancel := timeout.WithContext(ctx, cleanupTimeout)
 	defer cancel()
 
-	log.G(ctx).WithField("id", id).Warn("cleaning up after shim disconnected")
+	log.G(ctx).WithField("id", id).Info("cleaning up after shim disconnected")
 	response, err := binaryCall.Delete(ctx)
 	if err != nil {
 		log.G(ctx).WithError(err).WithField("id", id).Warn("failed to clean up after shim disconnected")
@@ -197,6 +200,23 @@ type ShimInstance interface {
 	// Endpoint returns shim's endpoint information,
 	// including address and version.
 	Endpoint() (string, int)
+}
+
+type clientVersionDowngrader interface {
+	// Downgrade is to lower shim's client version.
+	//
+	// Assume there is a running pod created by containerd-shim-runc-v2 from v1.7.x.
+	// After upgrading to v2.x, the containerd-shim-runc-v2 binary will support the
+	// sandbox API, and calling `shim start` for the existing running pod will return
+	// a version=3 address. However, that pod shim does not support the streaming IO API,
+	// so we should downgrade the shim version.
+	//
+	// Additionally, if a container record was created with v1.7.x, it will not have
+	// a SandboxID field in the metadata store. In the CRI case, this will cause
+	// the new shim client to use the v3 protocol to send requests to a running shim
+	// that still uses the v2 protocol, resulting in a failure to start.
+	// In this case, we should also downgrade the shim version and retry.
+	Downgrade() error
 }
 
 func parseStartResponse(response []byte) (client.BootstrapParams, error) {
@@ -377,6 +397,7 @@ type shim struct {
 }
 
 var _ ShimInstance = (*shim)(nil)
+var _ clientVersionDowngrader = (*shim)(nil)
 
 // ID of the shim/task
 func (s *shim) ID() string {
@@ -385,6 +406,15 @@ func (s *shim) ID() string {
 
 func (s *shim) Endpoint() (string, int) {
 	return s.address, s.version
+}
+
+func (s *shim) Downgrade() error {
+	if s.version >= CurrentShimVersion {
+		s.version--
+		return nil
+	}
+	return fmt.Errorf("unable to downgrade because shim version (%d) is lower than CurrentShimVersion (%d)",
+		s.version, CurrentShimVersion)
 }
 
 func (s *shim) Namespace() string {
@@ -526,6 +556,11 @@ func (s *shimTask) delete(ctx context.Context, sandboxed bool, removeTask func(c
 		removeTask(ctx, s.ID())
 	}
 
+	const supportSandboxAPIVersion = 3
+	if _, apiVer := s.ShimInstance.Endpoint(); apiVer < supportSandboxAPIVersion {
+		sandboxed = false
+	}
+
 	// Don't shutdown sandbox as there may be other containers running.
 	// Let controller decide when to shutdown.
 	if !sandboxed {
@@ -584,6 +619,50 @@ func (s *shimTask) Create(ctx context.Context, opts runtime.CreateOpts) (runtime
 	_, err := s.task.Create(ctx, request)
 	if err != nil {
 		return nil, errgrpc.ToNative(err)
+	}
+
+	if opts.RestoreFromPath {
+		// Unpack rootfs-diff.tar if it exists.
+		// This needs to happen between the 'Create()' from above and before the 'Start()' from below.
+		rootfsDiff := filepath.Join(opts.Checkpoint, "..", crmetadata.RootFsDiffTar)
+
+		_, err = os.Stat(rootfsDiff)
+		if err == nil {
+			rootfsDiffTar, err := os.Open(rootfsDiff)
+			if err != nil {
+				return nil, fmt.Errorf("failed to open rootfs-diff archive %s for import: %w", rootfsDiffTar.Name(), err)
+			}
+			defer func(f *os.File) {
+				if err := f.Close(); err != nil {
+					log.G(ctx).Errorf("Unable to close file %s: %q", f.Name(), err)
+				}
+			}(rootfsDiffTar)
+
+			decompressed, err := compression.DecompressStream(rootfsDiffTar)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decompress archive %s for import: %w", rootfsDiffTar.Name(), err)
+			}
+
+			rootfs := filepath.Join(s.Bundle(), "rootfs")
+			_, err = archive.Apply(
+				ctx,
+				rootfs,
+				decompressed,
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf("unpacking of rootfs-diff archive %s into %s failed: %w", rootfsDiffTar.Name(), rootfs, err)
+			}
+			log.G(ctx).Debugf("Unpacked checkpoint in %s", rootfs)
+		}
+		// (adrianreber): This is unclear to me. But it works (and it is necessary).
+		// This is probably connected to my misunderstanding why
+		// restoring a container goes through Create().
+		log.G(ctx).Infof("About to start with opts.Checkpoint %s", opts.Checkpoint)
+		err = s.Start(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return s, nil

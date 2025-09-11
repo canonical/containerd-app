@@ -24,16 +24,18 @@ import (
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/snapshots"
+	"github.com/containerd/containerd/v2/core/transfer"
 	criconfig "github.com/containerd/containerd/v2/internal/cri/config"
 	imagestore "github.com/containerd/containerd/v2/internal/cri/store/image"
 	snapshotstore "github.com/containerd/containerd/v2/internal/cri/store/snapshot"
 	"github.com/containerd/containerd/v2/internal/kmutex"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
+	"golang.org/x/sync/semaphore"
+
 	docker "github.com/distribution/reference"
 	imagedigest "github.com/opencontainers/go-digest"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
@@ -65,10 +67,15 @@ type CRIImageService struct {
 	imageStore *imagestore.Store
 	// snapshotStore stores information of all snapshots.
 	snapshotStore *snapshotstore.Store
+	// transferrer is used to pull image with transfer service
+	transferrer transfer.Transferrer
 	// unpackDuplicationSuppressor is used to make sure that there is only
 	// one in-flight fetch request or unpack handler for a given descriptor's
 	// or chain ID.
 	unpackDuplicationSuppressor kmutex.KeyedLocker
+
+	// downloadLimiter is used to limit the number of concurrent downloads.
+	downloadLimiter *semaphore.Weighted
 }
 
 type GRPCCRIImageService struct {
@@ -87,6 +94,8 @@ type CRIImageServiceOptions struct {
 	Snapshotters map[string]snapshots.Snapshotter
 
 	Client imageClient
+
+	Transferrer transfer.Transferrer
 }
 
 // NewService creates a new CRI Image Service
@@ -100,6 +109,10 @@ type CRIImageServiceOptions struct {
 //     - Content store (from metadata)
 //  3. Separate image cache and snapshot cache to first class plugins, make the snapshot cache much more efficient and intelligent
 func NewService(config criconfig.ImageConfig, options *CRIImageServiceOptions) (*CRIImageService, error) {
+	var downloadLimiter *semaphore.Weighted
+	if config.MaxConcurrentDownloads > 0 {
+		downloadLimiter = semaphore.NewWeighted(int64(config.MaxConcurrentDownloads))
+	}
 	svc := CRIImageService{
 		config:                      config,
 		images:                      options.Images,
@@ -108,7 +121,9 @@ func NewService(config criconfig.ImageConfig, options *CRIImageServiceOptions) (
 		imageFSPaths:                options.ImageFSPaths,
 		runtimePlatforms:            options.RuntimePlatforms,
 		snapshotStore:               snapshotstore.NewStore(),
+		transferrer:                 options.Transferrer,
 		unpackDuplicationSuppressor: kmutex.New(),
+		downloadLimiter:             downloadLimiter,
 	}
 
 	log.L.Info("Start snapshots syncer")
