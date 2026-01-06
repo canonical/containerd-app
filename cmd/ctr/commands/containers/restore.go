@@ -20,39 +20,39 @@ import (
 	"errors"
 
 	"github.com/containerd/console"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/cmd/ctr/commands"
-	"github.com/containerd/containerd/cmd/ctr/commands/tasks"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands/tasks"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/errdefs"
+	"github.com/containerd/log"
+	"github.com/urfave/cli/v2"
 )
 
-var restoreCommand = cli.Command{
+var restoreCommand = &cli.Command{
 	Name:      "restore",
 	Usage:     "Restore a container from checkpoint",
 	ArgsUsage: "CONTAINER REF",
 	Flags: []cli.Flag{
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "rw",
 			Usage: "Restore the rw layer from the checkpoint",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "live",
 			Usage: "Restore the runtime and memory data from the checkpoint",
 		},
 	},
-	Action: func(context *cli.Context) error {
-		id := context.Args().First()
+	Action: func(cliContext *cli.Context) error {
+		id := cliContext.Args().First()
 		if id == "" {
 			return errors.New("container id must be provided")
 		}
-		ref := context.Args().Get(1)
+		ref := cliContext.Args().Get(1)
 		if ref == "" {
 			return errors.New("ref must be provided")
 		}
-		client, ctx, cancel, err := commands.NewClient(context)
+		client, ctx, cancel, err := commands.NewClient(cliContext)
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ var restoreCommand = cli.Command{
 			containerd.WithRestoreSpec,
 			containerd.WithRestoreRuntime,
 		}
-		if context.Bool("rw") {
+		if cliContext.Bool("rw") {
 			opts = append(opts, containerd.WithRestoreRW)
 		}
 
@@ -85,7 +85,7 @@ var restoreCommand = cli.Command{
 			return err
 		}
 		topts := []containerd.NewTaskOpts{}
-		if context.Bool("live") {
+		if cliContext.Bool("live") {
 			topts = append(topts, containerd.WithTaskCheckpoint(checkpoint))
 		}
 		spec, err := ctr.Spec(ctx)
@@ -124,7 +124,7 @@ var restoreCommand = cli.Command{
 		}
 
 		if err := tasks.HandleConsoleResize(ctx, task, con); err != nil {
-			logrus.WithError(err).Error("console resize")
+			log.G(ctx).WithError(err).Error("console resize")
 		}
 
 		status := <-statusC
@@ -136,7 +136,7 @@ var restoreCommand = cli.Command{
 			return err
 		}
 		if code != 0 {
-			return cli.NewExitError("", int(code))
+			return cli.Exit("", int(code))
 		}
 		return nil
 	},

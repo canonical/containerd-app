@@ -19,6 +19,9 @@
 package builtins
 
 import (
-	_ "github.com/containerd/containerd/snapshots/blockfile/plugin"
-	_ "github.com/containerd/containerd/snapshots/native/plugin"
+	_ "github.com/containerd/containerd/v2/plugins/diff/erofs/plugin"
+	_ "github.com/containerd/containerd/v2/plugins/diff/walking/plugin"
+	_ "github.com/containerd/containerd/v2/plugins/snapshots/blockfile/plugin"
+	_ "github.com/containerd/containerd/v2/plugins/snapshots/erofs/plugin"
+	_ "github.com/containerd/containerd/v2/plugins/snapshots/native/plugin"
 )

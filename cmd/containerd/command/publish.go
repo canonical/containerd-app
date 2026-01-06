@@ -17,7 +17,7 @@
 package command
 
 import (
-	gocontext "context"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -25,33 +25,35 @@ import (
 	"time"
 
 	eventsapi "github.com/containerd/containerd/api/services/events/v1"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/pkg/dialer"
-	"github.com/containerd/containerd/protobuf/proto"
-	"github.com/containerd/containerd/protobuf/types"
-	"github.com/urfave/cli"
+	"github.com/containerd/errdefs"
+	"github.com/containerd/errdefs/pkg/errgrpc"
+	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/containerd/containerd/v2/pkg/dialer"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/pkg/protobuf/proto"
+	"github.com/containerd/containerd/v2/pkg/protobuf/types"
 )
 
-var publishCommand = cli.Command{
+var publishCommand = &cli.Command{
 	Name:  "publish",
 	Usage: "Binary to publish events to containerd",
 	Flags: []cli.Flag{
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "namespace",
 			Usage: "Namespace to publish to",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "topic",
 			Usage: "Topic of the event",
 		},
 	},
-	Action: func(context *cli.Context) error {
-		ctx := namespaces.WithNamespace(gocontext.Background(), context.String("namespace"))
-		topic := context.String("topic")
+	Action: func(cliContext *cli.Context) error {
+		ctx := namespaces.WithNamespace(cliContext.Context, cliContext.String("namespace"))
+		topic := cliContext.String("topic")
 		if topic == "" {
 			return fmt.Errorf("topic required to publish event: %w", errdefs.ErrInvalidArgument)
 		}
@@ -59,7 +61,7 @@ var publishCommand = cli.Command{
 		if err != nil {
 			return err
 		}
-		client, err := connectEvents(context.GlobalString("address"))
+		client, err := connectEvents(cliContext.String("address"))
 		if err != nil {
 			return err
 		}
@@ -67,7 +69,7 @@ var publishCommand = cli.Command{
 			Topic: topic,
 			Event: payload,
 		}); err != nil {
-			return errdefs.FromGRPC(err)
+			return errgrpc.ToNative(err)
 		}
 		return nil
 	},
@@ -78,11 +80,11 @@ func getEventPayload(r io.Reader) (*types.Any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var any types.Any
-	if err := proto.Unmarshal(data, &any); err != nil {
+	var payload types.Any
+	if err := proto.Unmarshal(data, &payload); err != nil {
 		return nil, err
 	}
-	return &any, nil
+	return &payload, nil
 }
 
 func connectEvents(address string) (eventsapi.EventsClient, error) {
@@ -93,22 +95,18 @@ func connectEvents(address string) (eventsapi.EventsClient, error) {
 	return eventsapi.NewEventsClient(conn), nil
 }
 
-func connect(address string, d func(gocontext.Context, string) (net.Conn, error)) (*grpc.ClientConn, error) {
+func connect(address string, d func(context.Context, string) (net.Conn, error)) (*grpc.ClientConn, error) {
 	backoffConfig := backoff.DefaultConfig
 	backoffConfig.MaxDelay = 3 * time.Second
 	connParams := grpc.ConnectParams{
 		Backoff: backoffConfig,
 	}
 	gopts := []grpc.DialOption{
-		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(d),
-		grpc.FailOnNonTempDialError(true),
 		grpc.WithConnectParams(connParams),
 	}
-	ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 2*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, dialer.DialAddress(address), gopts...)
+	conn, err := grpc.NewClient(dialer.DialAddress(address), gopts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %q: %w", address, err)
 	}

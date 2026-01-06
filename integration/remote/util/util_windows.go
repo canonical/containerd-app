@@ -34,6 +34,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -75,6 +76,13 @@ func GetAddressAndDialer(endpoint string) (string, func(ctx context.Context, add
 		return "", nil, err
 	}
 
+	// Use passthrough as the scheme so it allows us to use our custom dialer:
+	//
+	// "grpc.Dial uses "passthrough" as the default name resolver for backward compatibility while grpc.NewClient
+	// uses "dns" as its default name resolver. This subtle difference is important to legacy systems that also
+	// specified a custom dialer and expected it to receive the target string directly."
+	// https://github.com/grpc/grpc-go/blob/master/Documentation/anti-patterns.md#the-wrong-way-grpcdial
+	addr = fmt.Sprintf("passthrough:///%s", addr)
 	if protocol == tcpProtocol {
 		return addr, tcpDial, nil
 	}
@@ -83,7 +91,7 @@ func GetAddressAndDialer(endpoint string) (string, func(ctx context.Context, add
 		return addr, npipeDial, nil
 	}
 
-	return "", nil, fmt.Errorf("only support tcp and npipe endpoint")
+	return "", nil, errors.New("only support tcp and npipe endpoint")
 }
 
 func tcpDial(ctx context.Context, addr string) (net.Conn, error) {
@@ -96,15 +104,16 @@ func npipeDial(ctx context.Context, addr string) (net.Conn, error) {
 
 func parseEndpoint(endpoint string) (string, string, error) {
 	// url.Parse doesn't recognize \, so replace with / first.
-	endpoint = strings.Replace(endpoint, "\\", "/", -1)
+	endpoint = strings.ReplaceAll(endpoint, "\\", "/")
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return "", "", err
 	}
 
-	if u.Scheme == "tcp" {
+	switch u.Scheme {
+	case "tcp":
 		return "tcp", u.Host, nil
-	} else if u.Scheme == "npipe" {
+	case "npipe":
 		if strings.HasPrefix(u.Path, "//./pipe") {
 			return "npipe", u.Path, nil
 		}
@@ -115,8 +124,8 @@ func parseEndpoint(endpoint string) (string, string, error) {
 			host = "."
 		}
 		return "npipe", fmt.Sprintf("//%s%s", host, u.Path), nil
-	} else if u.Scheme == "" {
-		return "", "", fmt.Errorf("Using %q as endpoint is deprecated, please consider using full url format", endpoint)
+	case "":
+		return "", "", fmt.Errorf("using %q as endpoint is deprecated, please consider using full url format", endpoint)
 	}
 	return u.Scheme, "", fmt.Errorf("protocol %q not supported", u.Scheme)
 }
