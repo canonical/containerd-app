@@ -18,6 +18,7 @@ package instrument
 
 import (
 	"context"
+	"errors"
 
 	"github.com/containerd/errdefs"
 	"github.com/containerd/errdefs/pkg/errgrpc"
@@ -44,6 +45,9 @@ type GRPCServices interface {
 
 // instrumentedService wraps service with containerd namespace and logs.
 type instrumentedService struct {
+	runtime.UnimplementedRuntimeServiceServer
+	runtime.UnimplementedImageServiceServer
+
 	c criService
 }
 
@@ -351,6 +355,8 @@ func (in *instrumentedService) PullImage(ctx context.Context, r *runtime.PullIma
 	log.G(ctx).Infof("PullImage %q", r.GetImage().GetImage())
 	defer func() {
 		if err != nil {
+			// Sanitize error to remove sensitive information
+			err = ctrdutil.SanitizeError(err)
 			log.G(ctx).WithError(err).Errorf("PullImage %q failed", r.GetImage().GetImage())
 		} else {
 			log.G(ctx).Infof("PullImage %q returns image reference %q",
@@ -369,6 +375,8 @@ func (in *instrumentedService) ListImages(ctx context.Context, r *runtime.ListIm
 	log.G(ctx).Tracef("ListImages with filter %+v", r.GetFilter())
 	defer func() {
 		if err != nil {
+			// Sanitize error to remove sensitive information
+			err = ctrdutil.SanitizeError(err)
 			log.G(ctx).WithError(err).Errorf("ListImages with filter %+v failed", r.GetFilter())
 		} else {
 			log.G(ctx).Tracef("ListImages with filter %+v returns image list %+v",
@@ -386,6 +394,8 @@ func (in *instrumentedService) ImageStatus(ctx context.Context, r *runtime.Image
 	log.G(ctx).Tracef("ImageStatus for %q", r.GetImage().GetImage())
 	defer func() {
 		if err != nil {
+			// Sanitize error to remove sensitive information
+			err = ctrdutil.SanitizeError(err)
 			log.G(ctx).WithError(err).Errorf("ImageStatus for %q failed", r.GetImage().GetImage())
 		} else {
 			log.G(ctx).Tracef("ImageStatus for %q returns image status %+v",
@@ -404,6 +414,8 @@ func (in *instrumentedService) RemoveImage(ctx context.Context, r *runtime.Remov
 	log.G(ctx).Infof("RemoveImage %q", r.GetImage().GetImage())
 	defer func() {
 		if err != nil {
+			// Sanitize error to remove sensitive information
+			err = ctrdutil.SanitizeError(err)
 			log.G(ctx).WithError(err).Errorf("RemoveImage %q failed", r.GetImage().GetImage())
 		} else {
 			log.G(ctx).Infof("RemoveImage %q returns successfully", r.GetImage().GetImage())
@@ -641,4 +653,8 @@ func (in *instrumentedService) RuntimeConfig(ctx context.Context, r *runtime.Run
 	}()
 	res, err = in.c.RuntimeConfig(ctx, r)
 	return res, errgrpc.ToGRPC(err)
+}
+
+func (in *instrumentedService) UpdatePodSandboxResources(ctx context.Context, r *runtime.UpdatePodSandboxResourcesRequest) (res *runtime.UpdatePodSandboxResourcesResponse, err error) {
+	return nil, errors.New("not implemented yet")
 }

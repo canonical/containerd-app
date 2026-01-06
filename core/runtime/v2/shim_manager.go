@@ -26,22 +26,23 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/core/events/exchange"
-	"github.com/containerd/containerd/v2/core/metadata"
-	"github.com/containerd/containerd/v2/core/runtime"
-	"github.com/containerd/containerd/v2/core/sandbox"
-	"github.com/containerd/containerd/v2/internal/cleanup"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	shimbinary "github.com/containerd/containerd/v2/pkg/shim"
-	"github.com/containerd/containerd/v2/pkg/timeout"
-	"github.com/containerd/containerd/v2/plugins"
-	"github.com/containerd/containerd/v2/version"
+	apitypes "github.com/containerd/containerd/api/types"
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/plugin"
 	"github.com/containerd/plugin/registry"
 	"github.com/containerd/typeurl/v2"
+
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/events/exchange"
+	"github.com/containerd/containerd/v2/core/metadata"
+	"github.com/containerd/containerd/v2/core/runtime"
+	"github.com/containerd/containerd/v2/core/sandbox"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	shimbinary "github.com/containerd/containerd/v2/pkg/shim"
+	"github.com/containerd/containerd/v2/pkg/timeout"
+	"github.com/containerd/containerd/v2/plugins"
+	"github.com/containerd/containerd/v2/version"
 )
 
 // ShimConfig for the shim
@@ -155,6 +156,8 @@ type ShimManager struct {
 	// runtimePaths is a cache of `runtime names` -> `resolved fs path`
 	runtimePaths sync.Map
 	sandboxStore sandbox.Store
+	// shimInfos is a cache of the shim info
+	shimInfos sync.Map
 }
 
 // ID of the shim manager
@@ -290,7 +293,7 @@ func (m *ShimManager) startShim(ctx context.Context, bundle *Bundle, id string, 
 	shim, err := b.Start(ctx, typeurl.MarshalProto(topts), func() {
 		log.G(ctx).WithField("id", id).Info("shim disconnected")
 
-		cleanupAfterDeadShim(cleanup.Background(ctx), id, m.shims, m.events, b)
+		cleanupAfterDeadShim(context.WithoutCancel(ctx), id, m.shims, m.events, b)
 		// Remove self from the runtime task list. Even though the cleanupAfterDeadShim()
 		// would publish taskExit event, but the shim.Delete() would always failed with ttrpc
 		// disconnect and there is no chance to remove this dead task from runtime task lists.
@@ -417,7 +420,7 @@ func (m *ShimManager) resolveRuntimePath(runtime string) (string, error) {
 
 // cleanupShim attempts to properly delete and cleanup shim after error
 func (m *ShimManager) cleanupShim(ctx context.Context, shim *shim) {
-	dctx, cancel := timeout.WithContext(cleanup.Background(ctx), cleanupTimeout)
+	dctx, cancel := timeout.WithContext(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 
 	_ = shim.Delete(dctx)
@@ -439,4 +442,41 @@ func (m *ShimManager) Delete(ctx context.Context, id string) error {
 	m.shims.Delete(ctx, id)
 
 	return err
+}
+
+type shimInfo struct {
+	handledMounts []string
+}
+
+func (m *ShimManager) loadShimInfo(ctx context.Context, shim string) (*shimInfo, error) {
+	if i, ok := m.shimInfos.Load(shim); ok {
+		return i.(*shimInfo), nil
+	}
+	// Avoid fetching info for default shims with known behavior
+	if shim == "io.containerd.runc.v2" || shim == "io.containerd.runhcs.v1" {
+		sinfo := &shimInfo{}
+		m.shimInfos.Store(shim, sinfo)
+		return sinfo, nil
+	}
+
+	rinfo, err := getRuntimeInfo(ctx, m, &apitypes.RuntimeRequest{RuntimePath: shim})
+	if err != nil {
+		return nil, err
+	}
+	sinfo := &shimInfo{}
+
+	if rinfo.Annotations != nil {
+		if v, ok := rinfo.Annotations[allowedMounts]; ok {
+			sinfo.handledMounts = strings.Split(v, ",")
+		}
+	}
+
+	fields := log.Fields{}
+	for k, v := range rinfo.Annotations {
+		fields[k] = v
+	}
+	log.G(ctx).WithFields(fields).WithField("shim", shim).Debug("loaded shim info")
+
+	m.shimInfos.Store(shim, sinfo)
+	return sinfo, nil
 }
