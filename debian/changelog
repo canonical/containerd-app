@@ -1,3 +1,12 @@
+containerd-app (2.2.1-0ubuntu1) resolute; urgency=medium
+
+  * New upstream version 2.2.1
+  * d/containerd.docs: update NOTICE files
+  * d/copyright: update copyright data
+  * d/s/lintian-overrides: ignore long lines
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Tue, 13 Jan 2026 10:58:22 -0300
+
 containerd-app (2.1.3-0ubuntu3) questing; urgency=medium
 
   * d/control: adjust for new containerd-stable package in the archive
