@@ -1,3 +1,15 @@
+containerd-app (1.7.28-0ubuntu1~24.04.2) noble-security; urgency=medium
+
+  * SECURITY UPDATE: local priv escalation vulnerability
+    - debian/patches/CVE-2024-25621.patch: Fix directory permissions
+    - CVE-2024-25621
+  * SECURITY UPDATE: denial of service
+    - debian/patches/CVE-2025-64329.patch: fix goroutine leak of container
+      attach
+    - CVE-2025-64329
+
+ -- Nishit Majithia <nishit.majithia@canonical.com>  Wed, 28 Jan 2026 10:37:51 +0530
+
 containerd-app (1.7.28-0ubuntu1~24.04.1) noble; urgency=medium
 
   * New upstream version 1.7.28 (LP: #2112523)
