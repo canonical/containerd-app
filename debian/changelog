@@ -1,3 +1,15 @@
+containerd-app (2.1.3-0ubuntu3.1) questing-security; urgency=medium
+
+  * SECURITY UPDATE: local priv escalation vulnerability
+    - debian/patches/CVE-2024-25621.patch: Fix directory permissions
+    - CVE-2024-25621
+  * SECURITY UPDATE: denial of service
+    - debian/patches/CVE-2025-64329.patch: fix goroutine leak of container
+      attach
+    - CVE-2025-64329
+
+ -- Nishit Majithia <nishit.majithia@canonical.com>  Wed, 28 Jan 2026 10:38:22 +0530
+
 containerd-app (2.1.3-0ubuntu3) questing; urgency=medium
 
   * d/control: adjust for new containerd-stable package in the archive

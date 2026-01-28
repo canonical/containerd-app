@@ -1,3 +1,5 @@
 0001-Skip-test-failing-on-riscv64.patch
 0002-Skip-tests-which-require-a-certain-level-of-privileg.patch
 0003-Preserve-debug-info.patch
+CVE-2024-25621.patch
+CVE-2025-64329.patch
