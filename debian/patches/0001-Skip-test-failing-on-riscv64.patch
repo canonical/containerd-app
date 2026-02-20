@@ -11,15 +11,13 @@ regression.
  pkg/epoch/epoch_test.go | 1 +
  1 file changed, 1 insertion(+)
 
-diff --git a/pkg/epoch/epoch_test.go b/pkg/epoch/epoch_test.go
-index f25c77e..d8ac139 100644
 --- a/pkg/epoch/epoch_test.go
 +++ b/pkg/epoch/epoch_test.go
-@@ -79,6 +79,7 @@ func TestSourceDateEpoch(t *testing.T) {
+@@ -94,6 +94,7 @@
  	})
  
  	t.Run("WithInvalidSourceDateEpoch", func(t *testing.T) {
 +		t.Skip("This test is failing on riscv64")
- 		t.Setenv(SourceDateEpochEnv, "foo")
+ 		const invalidValue = "foo"
+ 		t.Setenv(SourceDateEpochEnv, invalidValue)
  
- 		vp, err := SourceDateEpoch()
