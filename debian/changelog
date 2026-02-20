@@ -1,3 +1,12 @@
+containerd-app (2.2.1-0ubuntu1~25.10.1) questing; urgency=medium
+
+  * Backport from resolute to questing (LP: #2127661)
+  * Drop patches applied upstream:
+    - d/p/CVE-2024-25621.patch
+    - d/p/CVE-2025-64329.patch
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Fri, 20 Feb 2026 16:34:24 -0300
+
 containerd-app (2.2.1-0ubuntu1) resolute; urgency=medium
 
   * New upstream version 2.2.1
