@@ -43,7 +43,6 @@ import (
 	"github.com/containerd/typeurl/v2"
 	"github.com/davecgh/go-spew/spew"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/opencontainers/selinux/go-selinux/label"
@@ -87,8 +86,12 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	if metadata == nil {
 		return nil, errors.New("container config must include metadata")
 	}
+	sandboxMetadata := sandboxConfig.GetMetadata()
+	if sandboxMetadata == nil {
+		return nil, errors.New("pod sandbox config must include metadata")
+	}
 	containerName := metadata.Name
-	name := makeContainerName(metadata, sandboxConfig.GetMetadata())
+	name := makeContainerName(metadata, sandboxMetadata)
 	log.G(ctx).Debugf("Generated id %q for container %q", id, name)
 	if err = c.containerNameIndex.Reserve(name, id); err != nil {
 		return nil, fmt.Errorf("failed to reserve container name %q: %w", name, err)
@@ -206,7 +209,7 @@ type createContainerRequest struct {
 	sandboxID             string
 	imageID               string
 	containerConfig       *runtime.ContainerConfig
-	imageConfig           *v1.ImageConfig
+	imageConfig           *imagespec.ImageConfig
 	podSandboxConfig      *runtime.PodSandboxConfig
 	sandboxRuntimeHandler string
 	sandboxPid            uint32
@@ -1023,6 +1026,10 @@ func (c *criService) buildWindowsSpec(
 	specOpts = append(specOpts,
 		annotations.DefaultCRIAnnotations(sandboxID, containerName, imageName, sandboxConfig, false)...,
 	)
+
+	if config.Windows != nil {
+		specOpts = append(specOpts, customopts.WithWindowsAffinityCPUs(config.Windows))
+	}
 
 	return specOpts, nil
 }

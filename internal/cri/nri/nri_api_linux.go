@@ -336,6 +336,9 @@ func (a *API) WithContainerAdjustment() containerd.NewContainerOpts {
 		if err != nil {
 			return fmt.Errorf("failed to get NRI adjustment for container: %w", err)
 		}
+		if adjust == nil {
+			return nil
+		}
 
 		sgen := generate.Generator{Config: spec}
 		ngen := nrigen.SpecGenerator(&sgen, generatorOptions...)
@@ -863,6 +866,54 @@ func (c *criContainer) GetCgroupsPath() string {
 		return ""
 	}
 	return c.spec.Linux.CgroupsPath
+}
+
+func (c *criContainer) GetIOPriority() *api.LinuxIOPriority {
+	if c.spec.Process == nil {
+		return nil
+	}
+	return api.FromOCILinuxIOPriority(c.spec.Process.IOPriority)
+}
+
+func (c *criContainer) GetScheduler() *api.LinuxScheduler {
+	if c.spec.Process == nil || c.spec.Process.Scheduler == nil {
+		return nil
+	}
+	return api.FromOCILinuxScheduler(c.spec.Process.Scheduler)
+}
+
+func (c *criContainer) GetNetDevices() map[string]*api.LinuxNetDevice {
+	if c.spec.Linux == nil {
+		return nil
+	}
+	return api.FromOCILinuxNetDevices(c.spec.Linux.NetDevices)
+}
+
+func (c *criContainer) GetRdt() *api.LinuxRdt {
+	if c.spec.Linux == nil || c.spec.Linux.IntelRdt == nil {
+		return nil
+	}
+	return &api.LinuxRdt{
+		ClosId:           api.String(c.spec.Linux.IntelRdt.ClosID),
+		Schemata:         api.RepeatedString(c.spec.Linux.IntelRdt.Schemata),
+		EnableMonitoring: api.Bool(c.spec.Linux.IntelRdt.EnableMonitoring),
+	}
+}
+
+func (c *criContainer) GetSeccompProfile() *api.SecurityProfile {
+	if c == nil || c.meta == nil || c.meta.Config == nil {
+		return nil
+	}
+
+	profile := c.meta.Config.GetLinux().GetSecurityContext().GetSeccomp()
+	if profile == nil {
+		return nil
+	}
+
+	return &api.SecurityProfile{
+		ProfileType:  api.SecurityProfile_ProfileType(profile.GetProfileType()),
+		LocalhostRef: profile.GetLocalhostRef(),
+	}
 }
 
 func (c *criContainer) GetPid() uint32 {
