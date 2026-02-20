@@ -19,7 +19,7 @@
 package shim
 
 import (
-	"context"
+	gocontext "context"
 	"io"
 	"os"
 	"sync"
@@ -37,7 +37,7 @@ var bufPool = sync.Pool{
 
 func prepareStdio(stdin, stdout, stderr string, console bool) (wg *sync.WaitGroup, err error) {
 	wg = &sync.WaitGroup{}
-	ctx := context.Background()
+	ctx := gocontext.Background()
 
 	f, err := fifo.OpenFifo(ctx, stdin, unix.O_WRONLY|unix.O_CREAT|unix.O_NONBLOCK, 0700)
 	if err != nil {

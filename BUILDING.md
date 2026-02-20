@@ -4,22 +4,11 @@ This guide is useful if you intend to contribute on containerd. Thanks for your
 effort. Every contribution is very appreciated.
 
 This doc includes:
-* [Getting started with GitHub Codespaces](#getting-started-with-gitHub-codespaces)
 * [Build requirements](#build-requirements)
 * [Build the development environment](#build-the-development-environment)
 * [Build containerd](#build-containerd)
 * [Via docker container](#via-docker-container)
 * [Testing](#testing-containerd)
-
-## Getting started with GitHub Codespaces
-
-To get started, create a codespace for this repository by clicking this 👇
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=46089560)
-
-A codespace will open in a web-based version of Visual Studio Code. The [dev container](.devcontainer/devcontainer.json) is fully configured with software needed for this project and the containerd built. If you use a codespace, then you can directly skip to the [testing](#testing-containerd) section of this document.
-
-**Note**: Dev containers is an open spec which is supported by [GitHub Codespaces](https://github.com/codespaces) and [other tools](https://containers.dev/supporting).
 
 ## Build requirements
 
@@ -43,7 +32,12 @@ You need `git` to checkout the source code:
 git clone https://github.com/containerd/containerd
 ```
 
-For proper results, install the `protoc` release into `/usr/local` on your build system. When generating source code from `.proto` files, containerd may rely on some external protocol buffer files. These external dependencies should be added to the `/usr/local/include` directory. To install the appropriate version of `protoc` and download any necessary external protocol buffer files on a Linux host, run the install script located at `script/setup/install-protobuf`.
+For proper results, install the `protoc` release into `/usr/local` on your build system. For example, the following commands will download and install the 3.11.4 release for a 64-bit Linux host:
+
+```sh
+wget -c https://github.com/protocolbuffers/protobuf/releases/download/v3.11.4/protoc-3.11.4-linux-x86_64.zip
+sudo unzip protoc-3.11.4-linux-x86_64.zip -d /usr/local
+```
 
 To enable optional [Btrfs](https://en.wikipedia.org/wiki/Btrfs) snapshotter, you should have the headers from the Linux kernel 4.12 or later.
 The dependency on the kernel headers only affects users building containerd from source.
@@ -116,12 +110,11 @@ make generate
 > * `no_cri`: A build tag disables building Kubernetes [CRI](http://blog.kubernetes.io/2016/12/container-runtime-interface-cri-in-kubernetes.html) support into containerd.
 > See [here](https://github.com/containerd/cri-containerd#build-tags) for build tags of CRI plugin.
 > * snapshotters (alphabetical order)
->   * `no_aufs`: A build tag disables building the aufs snapshot driver. (Ignored since containerd v2.0, as the aufs snapshot driver is no longer supported)
+>   * `no_aufs`: A build tag disables building the aufs snapshot driver.
 >   * `no_btrfs`: A build tag disables building the Btrfs snapshot driver.
 >   * `no_devmapper`: A build tag disables building the device mapper snapshot driver.
 >   * `no_zfs`: A build tag disables building the ZFS snapshot driver.
-> * platform
->   * `no_systemd`: disables any systemd specific code
+> * `no_dynamic_plugins`: A build tag disables dynamic plugins.
 >
 > For example, adding `BUILDTAGS=no_btrfs` to your environment before calling the **binaries**
 > Makefile target will disable the btrfs driver within the containerd Go build.
@@ -150,33 +143,52 @@ make STATIC=1
 
 # Via Docker container
 
-> [!NOTE]
-> The following instructions assume you are at the **parent** directory of containerd source directory.
+The following instructions assume you are at the parent directory of containerd source directory.
 
 ## Build containerd in a container
 
-You can build `containerd` via a Linux-based Docker container using the [Docker official `golang` image](https://hub.docker.com/_/golang/)
+You can build `containerd` via a Linux-based Docker container.
+You can build an image from this `Dockerfile`:
 
-From the **parent** directory of `containerd`'s cloned repo you can run the following command:
+```dockerfile
+FROM golang
+```
+
+Let's suppose that you built an image called `containerd/build`. From the
+containerd source root directory you can run the following command:
 
 ```sh
 docker run -it \
-    -v ${PWD}/containerd:/src/containerd \
-    -w /src/containerd golang
+    -v ${PWD}/containerd:/go/src/github.com/containerd/containerd \
+    -e GOPATH=/go \
+    -w /go/src/github.com/containerd/containerd containerd/build sh
 ```
 
-This mounts the `containerd` repository inside the image at `/src/containerd` and, by default, runs a shell at that directory.
+This mounts `containerd` repository
 
-Now, you are now ready to follow the [build instructions](#build-containerd):
+You are now ready to [build](#build-containerd):
+
+```sh
+make && make install
+```
 
 ## Build containerd and runc in a container
 
 To have complete core container runtime, you will need both `containerd` and `runc`. It is possible to build both of these via Docker container.
 
-You can clone `runc` in the same parent directory where you cloned `containerd` and you should clone [the latest stable version of `runc`](https://github.com/opencontainers/runc/releases), e.g. v1.1.13:
+You can use `git` to checkout `runc`:
 
 ```sh
-git clone --branch <RELEASE_TAG> https://github.com/opencontainers/runc
+git clone https://github.com/opencontainers/runc
+```
+
+We can build an image from this `Dockerfile`:
+
+```sh
+FROM golang
+
+RUN apt-get update && \
+    apt-get install -y libseccomp-dev
 ```
 
 In our Docker container we will build `runc` build, which includes
@@ -187,64 +199,34 @@ do not require external libraries at build time). Refer to [RUNC.md](docs/RUNC.m
 in the docs directory to for details about building runc, and to learn about
 supported versions of `runc` as used by containerd.
 
-Since we need [`libseccomp-dev`](https://packages.debian.org/stable/libseccomp-dev) installed as a dependency, we will need a custom Docker image derived from the official `golang` image. You can use the following `Dockerfile` to build your custom image:
+Let's suppose you build an image called `containerd/build` from the above Dockerfile. You can run the following command:
 
 ```sh
-FROM golang
-
-RUN apt-get update && \
-    apt-get install -y libseccomp-dev
-```
-
-Let's suppose you've built an image named `containerd/build` from the above `Dockerfile`.
-
-You can run the following command:
-
-```sh
-docker run -it \
-    -v ${PWD}/containerd:/src/containerd \
-    -v ${PWD}/runc:/src/runc \
-    -w /src/containerd \
-    containerd/build
+docker run -it --privileged \
+    -v /var/lib/containerd \
+    -v ${PWD}/runc:/go/src/github.com/opencontainers/runc \
+    -v ${PWD}/containerd:/go/src/github.com/containerd/containerd \
+    -e GOPATH=/go \
+    -w /go/src/github.com/containerd/containerd containerd/build sh
 ```
 
 This mounts both `runc` and `containerd` repositories in our Docker container.
 
-From within the Docker container, let's build `containerd`:
+From within our Docker container let's build `containerd`:
 
 ```sh
+cd /go/src/github.com/containerd/containerd
 make && make install
 ```
 
-You can check the installed binaries with:
-
-```sh
-$ which containerd
-/usr/local/bin/containerd
-
-$ containerd --version
-containerd github.com/containerd/containerd/v2 v2.0.0-rc.3-195-gf5d5407c2 f5d5407c2ff12865653a9a132d5783196be82763
-```
+These binaries can be found in the `./bin` directory in your host.
+`make install` will move the binaries in your `$PATH`.
 
 Next, let's build `runc`:
 
 ```sh
-cd /src/runc
+cd /go/src/github.com/opencontainers/runc
 make && make install
-```
-
-You can check the installed binaries with:
-
-```sh
-$ which runc
-/usr/local/sbin/runc
-
-$ runc --version
-runc version 1.1.13
-commit: v1.1.13-0-g58aa9203
-spec: 1.0.2-dev
-go: go1.23.0
-libseccomp: 2.5.4
 ```
 
 For further details about building runc, refer to [RUNC.md](docs/RUNC.md) in the
@@ -270,25 +252,25 @@ name and also how to use the flag directly against `go test` to run root-requiri
 
 ```sh
 # run the test <TEST_NAME>:
-go test	-v -run "<TEST_NAME>" ./path/to/package
+go test	-v -run "<TEST_NAME>" .
 # enable the root-requiring tests:
-go test -v -run ./path/to/package -test.root
+go test -v -run . -test.root
 ```
 
 Example output from directly running `go test` to execute the `TestContainerList` test:
 
 ```sh
-sudo go test -v -run "TestContainerList" ./integration/client -test.root
+sudo go test -v -run "TestContainerList" . -test.root
+INFO[0000] running tests against containerd revision=f2ae8a020a985a8d9862c9eb5ab66902c2888361 version=v1.0.0-beta.2-49-gf2ae8a0
 === RUN   TestContainerList
 --- PASS: TestContainerList (0.00s)
 PASS
-
-ok      github.com/containerd/containerd/v2/integration/client  2.584s
+ok  	github.com/containerd/containerd	4.778s
 ```
 
 > *Note*: in order to run `sudo go` you need to
 > - either keep user PATH environment variable. ex: `sudo "PATH=$PATH" env go test <args>`
-> - or use `go test -exec` ex: `go test -exec sudo -v -run "TestTarWithXattr" ./pkg/archive -test.root`
+> - or use `go test -exec` ex: `go test -exec sudo -v -run "TestTarWithXattr" ./archive/ -test.root`
 
 ## Additional tools
 

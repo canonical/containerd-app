@@ -22,8 +22,6 @@ import (
 )
 
 // Plugin type and configuration
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 type Plugin struct {
 	// Type of plugin
 	Type string `json:"type"`
@@ -34,8 +32,6 @@ type Plugin struct {
 // ConfigList for the global configuration of NRI
 //
 // Normally located at /etc/nri/conf.json
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 type ConfigList struct {
 	// Version of the list
 	Version string `json:"version"`
@@ -44,8 +40,6 @@ type ConfigList struct {
 }
 
 // Spec for the container being processed
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 type Spec struct {
 	// Resources struct from the OCI specification
 	//
@@ -60,8 +54,6 @@ type Spec struct {
 }
 
 // State of the request
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 type State string
 
 const (
@@ -78,8 +70,6 @@ const (
 )
 
 // Request for a plugin invocation
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 type Request struct {
 	// Conf specific for the plugin
 	Conf json.RawMessage `json:"conf,omitempty"`
@@ -108,15 +98,11 @@ type Request struct {
 }
 
 // IsSandbox returns true if the request is for a sandbox
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 func (r *Request) IsSandbox() bool {
 	return r.ID == r.SandboxID
 }
 
 // NewResult returns a result from the original request
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 func (r *Request) NewResult(plugin string) *Result {
 	return &Result{
 		Plugin:   plugin,
@@ -126,8 +112,6 @@ func (r *Request) NewResult(plugin string) *Result {
 }
 
 // Result of the plugin invocation
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 type Result struct {
 	// Plugin name that populated the result
 	Plugin string `json:"plugin"`
@@ -140,8 +124,6 @@ type Result struct {
 }
 
 // Err creates an Error object if ErrorMessage is populated
-//
-// Deprecated: NRI 0.1.0-style plugins should only be used through the v010-adapter plugin
 func (r *Result) Err() error {
 	if r.Error != "" {
 		return errors.New(r.Error)

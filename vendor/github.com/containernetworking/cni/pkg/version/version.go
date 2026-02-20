@@ -19,12 +19,13 @@ import (
 	"fmt"
 
 	"github.com/containernetworking/cni/pkg/types"
+	types100 "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/cni/pkg/types/create"
 )
 
 // Current reports the version of the CNI spec implemented by this library
 func Current() string {
-	return "1.1.0"
+	return types100.ImplementedSpecVersion
 }
 
 // Legacy PluginInfo describes a plugin that is backwards compatible with the
@@ -34,10 +35,8 @@ func Current() string {
 //
 // Any future CNI spec versions which meet this definition should be added to
 // this list.
-var (
-	Legacy = PluginSupports("0.1.0", "0.2.0")
-	All    = PluginSupports("0.1.0", "0.2.0", "0.3.0", "0.3.1", "0.4.0", "1.0.0", "1.1.0")
-)
+var Legacy = PluginSupports("0.1.0", "0.2.0")
+var All = PluginSupports("0.1.0", "0.2.0", "0.3.0", "0.3.1", "0.4.0", "1.0.0")
 
 // VersionsFrom returns a list of versions starting from min, inclusive
 func VersionsStartingFrom(min string) PluginInfo {
@@ -63,7 +62,7 @@ func NewResult(version string, resultBytes []byte) (types.Result, error) {
 
 // ParsePrevResult parses a prevResult in a NetConf structure and sets
 // the NetConf's PrevResult member to the parsed Result object.
-func ParsePrevResult(conf *types.PluginConf) error {
+func ParsePrevResult(conf *types.NetConf) error {
 	if conf.RawPrevResult == nil {
 		return nil
 	}

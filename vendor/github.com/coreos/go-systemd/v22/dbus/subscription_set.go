@@ -40,8 +40,8 @@ func (s *SubscriptionSet) Subscribe() (<-chan map[string]*UnitStatus, <-chan err
 }
 
 // NewSubscriptionSet returns a new subscription set.
-func (c *Conn) NewSubscriptionSet() *SubscriptionSet {
-	return &SubscriptionSet{newSet(), c}
+func (conn *Conn) NewSubscriptionSet() *SubscriptionSet {
+	return &SubscriptionSet{newSet(), conn}
 }
 
 // mismatchUnitStatus returns true if the provided UnitStatus objects

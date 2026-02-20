@@ -16,9 +16,8 @@
 
 package api
 
+//nolint
 // SetContainerId sets the id of the container to update.
-//
-//nolint:revive
 func (u *ContainerUpdate) SetContainerId(id string) {
 	u.ContainerId = id
 }

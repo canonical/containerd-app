@@ -25,8 +25,7 @@ import (
 //
 
 // Aliased request/response/event types for api/api.proto.
-//
-//nolint:revive // revive thinks the comment is for the exported type below
+// nolint
 type (
 	RegisterPluginRequest    = api.RegisterPluginRequest
 	RegisterPluginResponse   = api.Empty
@@ -38,9 +37,6 @@ type (
 	SynchronizeRequest  = api.SynchronizeRequest
 	SynchronizeResponse = api.SynchronizeResponse
 
-	ShutdownRequest  = api.Empty
-	ShutdownResponse = api.Empty
-
 	CreateContainerRequest  = api.CreateContainerRequest
 	CreateContainerResponse = api.CreateContainerResponse
 	UpdateContainerRequest  = api.UpdateContainerRequest
@@ -48,29 +44,21 @@ type (
 	StopContainerRequest    = api.StopContainerRequest
 	StopContainerResponse   = api.StopContainerResponse
 
-	StateChangeEvent             = api.StateChangeEvent
-	StateChangeResponse          = api.StateChangeResponse
-	RunPodSandboxRequest         = api.RunPodSandboxRequest
-	UpdatePodSandboxRequest      = api.UpdatePodSandboxRequest
-	UpdatePodSandboxResponse     = api.UpdatePodSandboxResponse
-	StopPodSandboxRequest        = api.StopPodSandboxRequest
-	RemovePodSandboxRequest      = api.RemovePodSandboxRequest
-	PostUpdatePodSandboxRequest  = api.PostUpdatePodSandboxRequest
-	PostUpdatePodSandboxResponse = api.PostUpdatePodSandboxResponse
-	StartContainerRequest        = api.StartContainerRequest
-	StartContainerResponse       = api.StartContainerResponse
-	RemoveContainerRequest       = api.RemoveContainerRequest
-	RemoveContainerResponse      = api.RemoveContainerResponse
-	PostCreateContainerRequest   = api.PostCreateContainerRequest
-	PostCreateContainerResponse  = api.PostCreateContainerResponse
-	PostStartContainerRequest    = api.PostStartContainerRequest
-	PostStartContainerResponse   = api.PostStartContainerResponse
-	PostUpdateContainerRequest   = api.PostUpdateContainerRequest
-	PostUpdateContainerResponse  = api.PostUpdateContainerResponse
-
-	ValidateContainerAdjustmentRequest  = api.ValidateContainerAdjustmentRequest
-	ValidateContainerAdjustmentResponse = api.ValidateContainerAdjustmentResponse
-	PluginInstance                      = api.PluginInstance
+	StateChangeEvent            = api.StateChangeEvent
+	StateChangeResponse         = api.StateChangeResponse
+	RunPodSandboxRequest        = api.RunPodSandboxRequest
+	StopPodSandboxRequest       = api.StopPodSandboxRequest
+	RemovePodSandboxRequest     = api.RemovePodSandboxRequest
+	StartContainerRequest       = api.StartContainerRequest
+	StartContainerResponse      = api.StartContainerResponse
+	RemoveContainerRequest      = api.RemoveContainerRequest
+	RemoveContainerResponse     = api.RemoveContainerResponse
+	PostCreateContainerRequest  = api.PostCreateContainerRequest
+	PostCreateContainerResponse = api.PostCreateContainerResponse
+	PostStartContainerRequest   = api.PostStartContainerRequest
+	PostStartContainerResponse  = api.PostStartContainerResponse
+	PostUpdateContainerRequest  = api.PostUpdateContainerRequest
+	PostUpdateContainerResponse = api.PostUpdateContainerResponse
 
 	PodSandbox               = api.PodSandbox
 	LinuxPodSandbox          = api.LinuxPodSandbox
@@ -90,44 +78,31 @@ type (
 	LinuxMemory              = api.LinuxMemory
 	LinuxDevice              = api.LinuxDevice
 	LinuxDeviceCgroup        = api.LinuxDeviceCgroup
-	LinuxIOPriority          = api.LinuxIOPriority
-	LinuxSeccomp             = api.LinuxSeccomp
-	LinuxNetDevice           = api.LinuxNetDevice
-	LinuxScheduler           = api.LinuxScheduler
-	LinuxSchedulerPolicy     = api.LinuxSchedulerPolicy
-	LinuxSchedulerFlag       = api.LinuxSchedulerFlag
-	LinuxRdt                 = api.LinuxRdt
 	CDIDevice                = api.CDIDevice
 	HugepageLimit            = api.HugepageLimit
 	Hooks                    = api.Hooks
 	Hook                     = api.Hook
 	POSIXRlimit              = api.POSIXRlimit
-	SecurityProfile          = api.SecurityProfile
-	User                     = api.User
 
 	EventMask = api.EventMask
 )
 
 // Aliased consts for api/api.proto.
-//
-//nolint:revive // ignore const naming from auto-generated code
+// nolint
 const (
-	Event_UNKNOWN                       = api.Event_UNKNOWN
-	Event_RUN_POD_SANDBOX               = api.Event_RUN_POD_SANDBOX
-	Event_UPDATE_POD_SANDBOX            = api.Event_UPDATE_POD_SANDBOX
-	Event_POST_UPDATE_POD_SANDBOX       = api.Event_POST_UPDATE_POD_SANDBOX
-	Event_STOP_POD_SANDBOX              = api.Event_STOP_POD_SANDBOX
-	Event_REMOVE_POD_SANDBOX            = api.Event_REMOVE_POD_SANDBOX
-	Event_CREATE_CONTAINER              = api.Event_CREATE_CONTAINER
-	Event_POST_CREATE_CONTAINER         = api.Event_POST_CREATE_CONTAINER
-	Event_START_CONTAINER               = api.Event_START_CONTAINER
-	Event_POST_START_CONTAINER          = api.Event_POST_START_CONTAINER
-	Event_UPDATE_CONTAINER              = api.Event_UPDATE_CONTAINER
-	Event_POST_UPDATE_CONTAINER         = api.Event_POST_UPDATE_CONTAINER
-	Event_STOP_CONTAINER                = api.Event_STOP_CONTAINER
-	Event_REMOVE_CONTAINER              = api.Event_REMOVE_CONTAINER
-	Event_VALIDATE_CONTAINER_ADJUSTMENT = api.Event_VALIDATE_CONTAINER_ADJUSTMENT
-	ValidEvents                         = api.ValidEvents
+	Event_UNKNOWN               = api.Event_UNKNOWN
+	Event_RUN_POD_SANDBOX       = api.Event_RUN_POD_SANDBOX
+	Event_STOP_POD_SANDBOX      = api.Event_STOP_POD_SANDBOX
+	Event_REMOVE_POD_SANDBOX    = api.Event_REMOVE_POD_SANDBOX
+	Event_CREATE_CONTAINER      = api.Event_CREATE_CONTAINER
+	Event_POST_CREATE_CONTAINER = api.Event_POST_CREATE_CONTAINER
+	Event_START_CONTAINER       = api.Event_START_CONTAINER
+	Event_POST_START_CONTAINER  = api.Event_POST_START_CONTAINER
+	Event_UPDATE_CONTAINER      = api.Event_UPDATE_CONTAINER
+	Event_POST_UPDATE_CONTAINER = api.Event_POST_UPDATE_CONTAINER
+	Event_STOP_CONTAINER        = api.Event_STOP_CONTAINER
+	Event_REMOVE_CONTAINER      = api.Event_REMOVE_CONTAINER
+	ValidEvents                 = api.ValidEvents
 
 	ContainerState_CONTAINER_UNKNOWN = api.ContainerState_CONTAINER_UNKNOWN
 	ContainerState_CONTAINER_CREATED = api.ContainerState_CONTAINER_CREATED
@@ -135,15 +110,10 @@ const (
 	ContainerState_CONTAINER_RUNNING = api.ContainerState_CONTAINER_RUNNING
 	ContainerState_CONTAINER_STOPPED = api.ContainerState_CONTAINER_STOPPED
 	ContainerState_CONTAINER_EXITED  = api.ContainerState_CONTAINER_STOPPED
-
-	SecurityProfile_RUNTIME_DEFAULT = api.SecurityProfile_RUNTIME_DEFAULT
-	SecurityProfile_UNCONFINED      = api.SecurityProfile_UNCONFINED
-	SecurityProfile_LOCALHOST       = api.SecurityProfile_LOCALHOST
 )
 
 // Aliased types for api/optional.go.
-//
-//nolint:revive // revive thinks the comment is for the exported type below
+// nolint
 type (
 	OptionalString   = api.OptionalString
 	OptionalInt      = api.OptionalInt
@@ -156,26 +126,26 @@ type (
 )
 
 // Aliased functions for api/optional.go.
+// nolint
 var (
-	String         = api.String
-	RepeatedString = api.RepeatedString
-	Int            = api.Int
-	Int32          = api.Int32
-	UInt32         = api.UInt32
-	Int64          = api.Int64
-	UInt64         = api.UInt64
-	Bool           = api.Bool
-	FileMode       = api.FileMode
+	String   = api.String
+	Int      = api.Int
+	Int32    = api.Int32
+	UInt32   = api.UInt32
+	Int64    = api.Int64
+	UInt64   = api.UInt64
+	Bool     = api.Bool
+	FileMode = api.FileMode
 )
 
 // Aliased functions for api/types.go.
+// nolint
 var (
 	FromOCIMounts          = api.FromOCIMounts
 	FromOCIHooks           = api.FromOCIHooks
 	FromOCILinuxNamespaces = api.FromOCILinuxNamespaces
 	FromOCILinuxDevices    = api.FromOCILinuxDevices
 	FromOCILinuxResources  = api.FromOCILinuxResources
-	FromOCILinuxIOPriority = api.FromOCILinuxIOPriority
 	DupStringSlice         = api.DupStringSlice
 	DupStringMap           = api.DupStringMap
 	IsMarkedForRemoval     = api.IsMarkedForRemoval

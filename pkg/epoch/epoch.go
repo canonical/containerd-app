@@ -22,6 +22,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // SourceDateEpochEnv is the SOURCE_DATE_EPOCH env var.
@@ -42,6 +44,19 @@ func SourceDateEpoch() (*time.Time, error) {
 	return t, nil
 }
 
+// SourceDateEpochOrNow returns the SOURCE_DATE_EPOCH time if available,
+// otherwise returns the current time.
+func SourceDateEpochOrNow() time.Time {
+	epoch, err := SourceDateEpoch()
+	if err != nil {
+		logrus.WithError(err).Warnf("Invalid %s", SourceDateEpochEnv)
+	}
+	if epoch != nil {
+		return *epoch
+	}
+	return time.Now().UTC()
+}
+
 // ParseSourceDateEpoch parses the given source date epoch, as *time.Time.
 // It returns an error if sourceDateEpoch is empty or not well-formatted.
 func ParseSourceDateEpoch(sourceDateEpoch string) (*time.Time, error) {
@@ -58,7 +73,7 @@ func ParseSourceDateEpoch(sourceDateEpoch string) (*time.Time, error) {
 
 // SetSourceDateEpoch sets the SOURCE_DATE_EPOCH env var.
 func SetSourceDateEpoch(tm time.Time) {
-	_ = os.Setenv(SourceDateEpochEnv, fmt.Sprintf("%d", tm.Unix()))
+	_ = os.Setenv(SourceDateEpochEnv, strconv.Itoa(int(tm.Unix())))
 }
 
 // UnsetSourceDateEpoch unsets the SOURCE_DATE_EPOCH env var.

@@ -51,14 +51,9 @@ func (p *streamProtocolV4) handleResizes() {
 	p.streamProtocolV3.handleResizes()
 }
 
-func (p *streamProtocolV4) stream(conn streamCreator, ready chan<- struct{}) error {
+func (p *streamProtocolV4) stream(conn streamCreator) error {
 	if err := p.createStreams(conn); err != nil {
 		return err
-	}
-
-	// Signal that all streams have been created.
-	if ready != nil {
-		close(ready)
 	}
 
 	// now that all the streams have been created, proceed with reading & copying
@@ -120,5 +115,5 @@ func (d *errorDecoderV4) decode(message []byte) error {
 		return errors.New("error stream protocol error: unknown error")
 	}
 
-	return errors.New(status.Message)
+	return fmt.Errorf(status.Message)
 }

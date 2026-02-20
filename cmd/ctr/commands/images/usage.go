@@ -17,40 +17,38 @@
 package images
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/defaults"
-	"github.com/containerd/containerd/v2/pkg/progress"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/containerd/containerd/pkg/progress"
 
 	"github.com/opencontainers/image-spec/identity"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli"
 )
 
-var usageCommand = &cli.Command{
+var usageCommand = cli.Command{
 	Name:      "usage",
 	Usage:     "Display usage of snapshots for a given image ref",
 	ArgsUsage: "[flags] <ref>",
 	Flags:     commands.SnapshotterFlags,
-	Action: func(cliContext *cli.Context) error {
-		var ref = cliContext.Args().First()
+	Action: func(context *cli.Context) error {
+		var ref = context.Args().First()
 		if ref == "" {
-			return errors.New("please provide an image reference to mount")
+			return fmt.Errorf("please provide an image reference to mount")
 		}
 
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
 		defer cancel()
 
-		snapshotter := cliContext.String("snapshotter")
+		snapshotter := context.String("snapshotter")
 		if snapshotter == "" {
-			snapshotter = defaults.DefaultSnapshotter
+			snapshotter = containerd.DefaultSnapshotter
 		}
 
 		img, err := client.ImageService().Get(ctx, ref)

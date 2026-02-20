@@ -31,8 +31,3 @@ func FromOCILinuxNamespaces(o []rspec.LinuxNamespace) []*LinuxNamespace {
 	}
 	return namespaces
 }
-
-// IsMarkedForRemoval checks if a LinuxNamespace is marked for removal.
-func (n *LinuxNamespace) IsMarkedForRemoval() (string, bool) {
-	return IsMarkedForRemoval(n.Type)
-}

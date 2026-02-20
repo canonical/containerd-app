@@ -31,9 +31,9 @@ type collector struct {
 }
 
 // NewCollector creates new Prometheus collector of RDT metrics
-func NewCollector() prometheus.Collector {
+func NewCollector() (prometheus.Collector, error) {
 	c := &collector{descriptors: make(map[string]*prometheus.Desc)}
-	return c
+	return c, nil
 }
 
 // RegisterCustomPrometheusLabels registers monitor group annotations to be
@@ -67,13 +67,12 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	var wg sync.WaitGroup
 
 	for _, cls := range GetClasses() {
-		c.collectGroupMetrics(ch, cls)
 		for _, monGrp := range cls.GetMonGroups() {
 			wg.Add(1)
 			g := monGrp
 			go func() {
 				defer wg.Done()
-				c.collectMonGroupMetrics(ch, g)
+				c.collectGroupMetrics(ch, g)
 			}()
 		}
 	}
@@ -101,30 +100,19 @@ func (c *collector) describeL3(feature string) *prometheus.Desc {
 	return d
 }
 
-func (c *collector) collectMonGroupMetrics(ch chan<- prometheus.Metric, mg MonGroup) {
-	annotations := map[string]string{} // mg.GetAnnotations()
+func (c *collector) collectGroupMetrics(ch chan<- prometheus.Metric, mg MonGroup) {
+	allData := mg.GetMonData()
+
+	annotations := mg.GetAnnotations()
 	customLabelValues := make([]string, len(customLabels))
 	for i, name := range customLabels {
 		customLabelValues[i] = annotations[name]
 	}
 
-	c.collectGroupMetrics(ch, mg, customLabelValues...)
-}
-
-func (c *collector) collectGroupMetrics(ch chan<- prometheus.Metric, g ResctrlGroup, customLabels ...string) {
-	allData := g.GetMonData()
-
-	cgName, mgName := "", ""
-	if mg, ok := g.(MonGroup); ok {
-		cgName = mg.Parent().Name()
-		mgName = mg.Name()
-	} else {
-		cgName = g.Name()
-	}
-
 	for cacheID, data := range allData.L3 {
-		labels := append([]string{cgName, mgName, fmt.Sprint(cacheID)}, customLabels...)
 		for feature, value := range data {
+			labels := append([]string{mg.Parent().Name(), mg.Name(), fmt.Sprint(cacheID)}, customLabelValues...)
+
 			ch <- prometheus.MustNewConstMetric(
 				c.describeL3(feature),
 				prometheus.CounterValue,

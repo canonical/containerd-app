@@ -34,48 +34,46 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/log"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/containers"
+	cri "github.com/containerd/containerd/integration/cri-api/pkg/apis"
+	_ "github.com/containerd/containerd/integration/images" // Keep this around to parse `imageListFile` command line var
+	"github.com/containerd/containerd/integration/remote"
+	dialer "github.com/containerd/containerd/integration/remote/util"
+	criconfig "github.com/containerd/containerd/pkg/cri/config"
+	"github.com/containerd/containerd/pkg/cri/constants"
+	"github.com/containerd/containerd/pkg/cri/server"
+	"github.com/containerd/containerd/pkg/cri/util"
 	"github.com/opencontainers/selinux/go-selinux"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
-
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/containers"
-	cri "github.com/containerd/containerd/v2/integration/cri-api/pkg/apis"
-	_ "github.com/containerd/containerd/v2/integration/images" // Keep this around to parse `imageListFile` command line var
-	"github.com/containerd/containerd/v2/integration/remote"
-	dialer "github.com/containerd/containerd/v2/integration/remote/util"
-	criconfig "github.com/containerd/containerd/v2/internal/cri/config"
-	"github.com/containerd/containerd/v2/internal/cri/constants"
-	"github.com/containerd/containerd/v2/internal/cri/types"
-	"github.com/containerd/containerd/v2/internal/cri/util"
 )
 
 const (
-	timeout                    = 3 * time.Minute
-	k8sNamespace               = constants.K8sContainerdNamespace
-	defaultCgroupSystemdParent = "/containerd-test.slice"
+	timeout      = 1 * time.Minute
+	k8sNamespace = constants.K8sContainerdNamespace
 )
 
 var (
 	runtimeService     cri.RuntimeService
-	runtimeService2    cri.RuntimeService // to test GetContainerEvents broadcast
 	imageService       cri.ImageManagerService
 	containerdClient   *containerd.Client
 	containerdEndpoint string
 )
 
 var criEndpoint = flag.String("cri-endpoint", "unix:///run/containerd/containerd.sock", "The endpoint of cri plugin.")
+var criRoot = flag.String("cri-root", "/var/lib/containerd/io.containerd.grpc.v1.cri", "The root directory of cri plugin.")
 var runtimeHandler = flag.String("runtime-handler", "", "The runtime handler to use in the test.")
 var containerdBin = flag.String("containerd-bin", "containerd", "The containerd binary name. The name is used to restart containerd during test.")
 
 func TestMain(m *testing.M) {
 	flag.Parse()
 	if err := ConnectDaemons(); err != nil {
-		log.L.WithError(err).Fatalf("Failed to connect daemons")
+		logrus.WithError(err).Fatalf("Failed to connect daemons")
 	}
 	os.Exit(m.Run())
 }
@@ -87,10 +85,6 @@ func ConnectDaemons() error {
 	if err != nil {
 		return fmt.Errorf("failed to create runtime service: %w", err)
 	}
-	runtimeService2, err = remote.NewRuntimeService(*criEndpoint, timeout)
-	if err != nil {
-		return fmt.Errorf("failed to create runtime service: %w", err)
-	}
 	imageService, err = remote.NewImageService(*criEndpoint, timeout)
 	if err != nil {
 		return fmt.Errorf("failed to create image service: %w", err)
@@ -99,10 +93,6 @@ func ConnectDaemons() error {
 	// need to check whether it is actually connected.
 	// TODO(#6069) Use grpc options to block on connect and remove for this list containers request.
 	_, err = runtimeService.ListContainers(&runtime.ContainerFilter{})
-	if err != nil {
-		return fmt.Errorf("failed to list containers: %w", err)
-	}
-	_, err = runtimeService2.ListContainers(&runtime.ContainerFilter{})
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
@@ -135,22 +125,6 @@ func WithHostNetwork(p *runtime.PodSandboxConfig) {
 		p.Linux.SecurityContext.NamespaceOptions = &runtime.NamespaceOption{}
 	}
 	p.Linux.SecurityContext.NamespaceOptions.Network = runtime.NamespaceMode_NODE
-}
-
-// Set selinux level
-func WithSelinuxLevel(level string) PodSandboxOpts {
-	return func(p *runtime.PodSandboxConfig) {
-		if p.Linux == nil {
-			p.Linux = &runtime.LinuxPodSandboxConfig{}
-		}
-		if p.Linux.SecurityContext == nil {
-			p.Linux.SecurityContext = &runtime.LinuxSandboxSecurityContext{}
-		}
-		if p.Linux.SecurityContext.SelinuxOptions == nil {
-			p.Linux.SecurityContext.SelinuxOptions = &runtime.SELinuxOption{}
-		}
-		p.Linux.SecurityContext.SelinuxOptions.Level = level
-	}
 }
 
 // Set pod userns.
@@ -233,28 +207,8 @@ func WithPodLabels(kvs map[string]string) PodSandboxOpts {
 	}
 }
 
-// WithSecurityContext set container privileged.
-func WithPodSecurityContext(privileged bool) PodSandboxOpts {
-	return func(p *runtime.PodSandboxConfig) {
-		if p.Linux == nil {
-			p.Linux = &runtime.LinuxPodSandboxConfig{}
-		}
-		if p.Linux.SecurityContext == nil {
-			p.Linux.SecurityContext = &runtime.LinuxSandboxSecurityContext{}
-		}
-		p.Linux.SecurityContext.Privileged = privileged
-	}
-}
-
 // PodSandboxConfig generates a pod sandbox config for test.
 func PodSandboxConfig(name, ns string, opts ...PodSandboxOpts) *runtime.PodSandboxConfig {
-	var cgroupParent string
-	runtimeConfig, err := runtimeService.RuntimeConfig(&runtime.RuntimeConfigRequest{})
-	if err != nil {
-		log.L.WithError(err).Errorf("runtime service call RuntimeConfig error")
-	} else if runtimeConfig.GetLinux().GetCgroupDriver() == runtime.CgroupDriver_SYSTEMD {
-		cgroupParent = defaultCgroupSystemdParent
-	}
 	config := &runtime.PodSandboxConfig{
 		Metadata: &runtime.PodSandboxMetadata{
 			Name: name,
@@ -263,9 +217,7 @@ func PodSandboxConfig(name, ns string, opts ...PodSandboxOpts) *runtime.PodSandb
 			Uid:       util.GenerateID(),
 			Namespace: Randomize(ns),
 		},
-		Linux: &runtime.LinuxPodSandboxConfig{
-			CgroupParent: cgroupParent,
-		},
+		Linux:       &runtime.LinuxPodSandboxConfig{},
 		Annotations: make(map[string]string),
 		Labels:      make(map[string]string),
 	}
@@ -335,10 +287,6 @@ func WithWindowsResources(r *runtime.WindowsContainerResources) ContainerOpts {
 }
 
 func WithVolumeMount(hostPath, containerPath string) ContainerOpts {
-	return WithIDMapVolumeMount(hostPath, containerPath, nil, nil)
-}
-
-func WithIDMapVolumeMount(hostPath, containerPath string, uidMaps, gidMaps []*runtime.IDMapping) ContainerOpts {
 	return func(c *runtime.ContainerConfig) {
 		hostPath, _ = filepath.Abs(hostPath)
 		containerPath, _ = filepath.Abs(containerPath)
@@ -346,30 +294,6 @@ func WithIDMapVolumeMount(hostPath, containerPath string, uidMaps, gidMaps []*ru
 			HostPath:       hostPath,
 			ContainerPath:  containerPath,
 			SelinuxRelabel: selinux.GetEnabled(),
-			UidMappings:    uidMaps,
-			GidMappings:    gidMaps,
-		}
-		c.Mounts = append(c.Mounts, mount)
-	}
-}
-
-func WithImageVolumeMount(image, imageSubPath, containerPath string) ContainerOpts {
-	return WithIDMapImageVolumeMount(image, imageSubPath, containerPath, nil, nil)
-}
-
-func WithIDMapImageVolumeMount(image, imageSubPath, containerPath string, uidMaps, gidMaps []*runtime.IDMapping) ContainerOpts {
-	return func(c *runtime.ContainerConfig) {
-		containerPath, _ = filepath.Abs(containerPath)
-		mount := &runtime.Mount{
-			ContainerPath: containerPath,
-			UidMappings:   uidMaps,
-			GidMappings:   gidMaps,
-			Image: &runtime.ImageSpec{
-				Image: image,
-			},
-			ImageSubPath:   imageSubPath,
-			Readonly:       true,
-			SelinuxRelabel: true,
 		}
 		c.Mounts = append(c.Mounts, mount)
 	}
@@ -512,43 +436,12 @@ func WithSupplementalGroups(gids []int64) ContainerOpts {
 	}
 }
 
-// WithSecurityContext set container privileged.
-func WithSecurityContext(privileged bool) ContainerOpts {
-	return func(c *runtime.ContainerConfig) {
-		if c.Linux == nil {
-			c.Linux = &runtime.LinuxContainerConfig{}
-		}
-		if c.Linux.SecurityContext == nil {
-			c.Linux.SecurityContext = &runtime.LinuxContainerSecurityContext{}
-		}
-		c.Linux.SecurityContext.Privileged = privileged
-	}
-}
-
 // WithDevice adds a device mount.
 func WithDevice(containerPath, hostPath, permissions string) ContainerOpts {
 	return func(c *runtime.ContainerConfig) {
 		c.Devices = append(c.Devices, &runtime.Device{
 			ContainerPath: containerPath, HostPath: hostPath, Permissions: permissions,
 		})
-	}
-}
-
-// WithSELinuxOptions allows to set SELinux option for container.
-func WithSELinuxOptions(user, role, typ, level string) ContainerOpts {
-	return func(c *runtime.ContainerConfig) {
-		if c.Linux == nil {
-			c.Linux = &runtime.LinuxContainerConfig{}
-		}
-		if c.Linux.SecurityContext == nil {
-			c.Linux.SecurityContext = &runtime.LinuxContainerSecurityContext{}
-		}
-		c.Linux.SecurityContext.SelinuxOptions = &runtime.SELinuxOption{
-			User:  user,
-			Role:  role,
-			Type:  typ,
-			Level: level,
-		}
 	}
 }
 
@@ -633,17 +526,13 @@ func KillProcess(name string, signal syscall.Signal) error {
 
 // KillPid kills the process by pid. kill is used.
 func KillPid(pid int) error {
-	switch goruntime.GOOS {
-	case "windows":
-		output, err := exec.Command("tskill", strconv.Itoa(pid)).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to kill %d - error: %v, output: %q", pid, err, output)
-		}
-	default:
-		output, err := exec.Command("kill", "-9", strconv.Itoa(pid)).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to kill %d - error: %v, output: %q", pid, err, output)
-		}
+	command := "kill"
+	if goruntime.GOOS == "windows" {
+		command = "tskill"
+	}
+	output, err := exec.Command(command, strconv.Itoa(pid)).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to kill %d - error: %v, output: %q", pid, err, output)
 	}
 	return nil
 }
@@ -741,7 +630,9 @@ func RawRuntimeClient() (runtime.RuntimeServiceClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dialer: %w", err)
 	}
-	conn, err := grpc.NewClient(addr,
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 	)
@@ -769,7 +660,7 @@ func CRIConfig() (*criconfig.Config, error) {
 }
 
 // SandboxInfo gets sandbox info.
-func SandboxInfo(id string) (*runtime.PodSandboxStatus, *types.SandboxInfo, error) {
+func SandboxInfo(id string) (*runtime.PodSandboxStatus, *server.SandboxInfo, error) {
 	client, err := RawRuntimeClient()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get raw runtime client: %w", err)
@@ -782,7 +673,7 @@ func SandboxInfo(id string) (*runtime.PodSandboxStatus, *types.SandboxInfo, erro
 		return nil, nil, fmt.Errorf("failed to get sandbox status: %w", err)
 	}
 	status := resp.GetStatus()
-	var info types.SandboxInfo
+	var info server.SandboxInfo
 	if err := json.Unmarshal([]byte(resp.GetInfo()["info"]), &info); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal sandbox info: %w", err)
 	}
@@ -818,7 +709,7 @@ func EnsureImageExists(t *testing.T, imageName string) string {
 	}
 
 	t.Logf("Pull test image %q", imageName)
-	imgID, err := imageService.PullImage(&runtime.ImageSpec{Image: imageName}, nil, nil, "")
+	imgID, err := imageService.PullImage(&runtime.ImageSpec{Image: imageName}, nil, nil)
 	require.NoError(t, err)
 
 	return imgID

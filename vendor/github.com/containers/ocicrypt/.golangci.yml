@@ -7,7 +7,7 @@ linters:
     - goimports
     - revive
     - ineffassign
-    - govet
+    - vet
     - unused
     - misspell
 

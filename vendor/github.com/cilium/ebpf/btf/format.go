@@ -56,46 +56,54 @@ func (gf *GoFormatter) enumIdentifier(name, element string) string {
 //
 // It encodes https://golang.org/ref/spec#Type_declarations:
 //
-//	type foo struct { bar uint32; }
-//	type bar int32
+//     type foo struct { bar uint32; }
+//     type bar int32
 func (gf *GoFormatter) writeTypeDecl(name string, typ Type) error {
 	if name == "" {
 		return fmt.Errorf("need a name for type %s", typ)
 	}
 
-	typ = skipQualifiers(typ)
-	fmt.Fprintf(&gf.w, "type %s ", name)
-	if err := gf.writeTypeLit(typ, 0); err != nil {
-		return err
-	}
-
-	e, ok := typ.(*Enum)
-	if !ok || len(e.Values) == 0 {
-		return nil
-	}
-
-	gf.w.WriteString("; const ( ")
-	for _, ev := range e.Values {
-		id := gf.enumIdentifier(name, ev.Name)
-		var value any
-		if e.Signed {
-			value = int64(ev.Value)
-		} else {
-			value = ev.Value
+	switch v := skipQualifiers(typ).(type) {
+	case *Enum:
+		fmt.Fprintf(&gf.w, "type %s ", name)
+		switch v.Size {
+		case 1:
+			gf.w.WriteString("int8")
+		case 2:
+			gf.w.WriteString("int16")
+		case 4:
+			gf.w.WriteString("int32")
+		case 8:
+			gf.w.WriteString("int64")
+		default:
+			return fmt.Errorf("%s: invalid enum size %d", typ, v.Size)
 		}
-		fmt.Fprintf(&gf.w, "%s %s = %d; ", id, name, value)
-	}
-	gf.w.WriteString(")")
 
-	return nil
+		if len(v.Values) == 0 {
+			return nil
+		}
+
+		gf.w.WriteString("; const ( ")
+		for _, ev := range v.Values {
+			id := gf.enumIdentifier(name, ev.Name)
+			fmt.Fprintf(&gf.w, "%s %s = %d; ", id, name, ev.Value)
+		}
+		gf.w.WriteString(")")
+
+		return nil
+
+	default:
+		fmt.Fprintf(&gf.w, "type %s ", name)
+		return gf.writeTypeLit(v, 0)
+	}
 }
 
 // writeType outputs the name of a named type or a literal describing the type.
 //
 // It encodes https://golang.org/ref/spec#Types.
 //
-//	foo                  (if foo is a named type)
-//	uint32
+//     foo                  (if foo is a named type)
+//     uint32
 func (gf *GoFormatter) writeType(typ Type, depth int) error {
 	typ = skipQualifiers(typ)
 
@@ -114,35 +122,21 @@ func (gf *GoFormatter) writeType(typ Type, depth int) error {
 //
 // It encodes https://golang.org/ref/spec#TypeLit.
 //
-//	struct { bar uint32; }
-//	uint32
+//     struct { bar uint32; }
+//     uint32
 func (gf *GoFormatter) writeTypeLit(typ Type, depth int) error {
 	depth++
-	if depth > maxResolveDepth {
+	if depth > maxTypeDepth {
 		return errNestedTooDeep
 	}
 
 	var err error
 	switch v := skipQualifiers(typ).(type) {
 	case *Int:
-		err = gf.writeIntLit(v)
+		gf.writeIntLit(v)
 
 	case *Enum:
-		if !v.Signed {
-			gf.w.WriteRune('u')
-		}
-		switch v.Size {
-		case 1:
-			gf.w.WriteString("int8")
-		case 2:
-			gf.w.WriteString("int16")
-		case 4:
-			gf.w.WriteString("int32")
-		case 8:
-			gf.w.WriteString("int64")
-		default:
-			err = fmt.Errorf("invalid enum size %d", v.Size)
-		}
+		gf.w.WriteString("int32")
 
 	case *Typedef:
 		err = gf.writeType(v.Type, depth)
@@ -172,36 +166,19 @@ func (gf *GoFormatter) writeTypeLit(typ Type, depth int) error {
 	return nil
 }
 
-func (gf *GoFormatter) writeIntLit(i *Int) error {
-	bits := i.Size * 8
-	switch i.Encoding {
-	case Bool:
-		if i.Size != 1 {
-			return fmt.Errorf("bool with size %d", i.Size)
-		}
+func (gf *GoFormatter) writeIntLit(i *Int) {
+	// NB: Encoding.IsChar is ignored.
+	if i.Encoding.IsBool() && i.Size == 1 {
 		gf.w.WriteString("bool")
-	case Char:
-		if i.Size != 1 {
-			return fmt.Errorf("char with size %d", i.Size)
-		}
-		// BTF doesn't have a way to specify the signedness of a char. Assume
-		// we are dealing with unsigned, since this works nicely with []byte
-		// in Go code.
-		fallthrough
-	case Unsigned, Signed:
-		stem := "uint"
-		if i.Encoding == Signed {
-			stem = "int"
-		}
-		if i.Size > 8 {
-			fmt.Fprintf(&gf.w, "[%d]byte /* %s%d */", i.Size, stem, i.Size*8)
-		} else {
-			fmt.Fprintf(&gf.w, "%s%d", stem, bits)
-		}
-	default:
-		return fmt.Errorf("can't encode %s", i.Encoding)
+		return
 	}
-	return nil
+
+	bits := i.Size * 8
+	if i.Encoding.IsSigned() {
+		fmt.Fprintf(&gf.w, "int%d", bits)
+	} else {
+		fmt.Fprintf(&gf.w, "uint%d", bits)
+	}
 }
 
 func (gf *GoFormatter) writeStructLit(size uint32, members []Member, depth int) error {
@@ -222,15 +199,11 @@ func (gf *GoFormatter) writeStructLit(size uint32, members []Member, depth int) 
 			gf.writePadding(n)
 		}
 
-		fieldSize, err := Sizeof(m.Type)
+		size, err := Sizeof(m.Type)
 		if err != nil {
 			return fmt.Errorf("field %d: %w", i, err)
 		}
-
-		prevOffset = offset + uint32(fieldSize)
-		if prevOffset > size {
-			return fmt.Errorf("field %d of size %d exceeds type size %d", i, fieldSize, size)
-		}
+		prevOffset = offset + uint32(size)
 
 		if err := gf.writeStructField(m, depth); err != nil {
 			return fmt.Errorf("field %d: %w", i, err)
@@ -265,7 +238,7 @@ func (gf *GoFormatter) writeStructField(m Member, depth int) error {
 		}
 
 		depth++
-		if depth > maxResolveDepth {
+		if depth > maxTypeDepth {
 			return errNestedTooDeep
 		}
 
@@ -299,11 +272,7 @@ func (gf *GoFormatter) writeDatasecLit(ds *Datasec, depth int) error {
 
 	prevOffset := uint32(0)
 	for i, vsi := range ds.Vars {
-		v, ok := vsi.Type.(*Var)
-		if !ok {
-			return fmt.Errorf("can't format %s as part of data section", vsi.Type)
-		}
-
+		v := vsi.Type.(*Var)
 		if v.Linkage != GlobalVar {
 			// Ignore static, extern, etc. for now.
 			continue
@@ -338,7 +307,7 @@ func (gf *GoFormatter) writePadding(bytes uint32) {
 
 func skipQualifiers(typ Type) Type {
 	result := typ
-	for depth := 0; depth <= maxResolveDepth; depth++ {
+	for depth := 0; depth <= maxTypeDepth; depth++ {
 		switch v := (result).(type) {
 		case qualifier:
 			result = v.qualify()

@@ -26,14 +26,6 @@ const (
 	IFLA_BRIDGE_FLAGS = iota
 	IFLA_BRIDGE_MODE
 	IFLA_BRIDGE_VLAN_INFO
-	IFLA_BRIDGE_VLAN_TUNNEL_INFO
-)
-
-const (
-	IFLA_BRIDGE_VLAN_TUNNEL_UNSPEC = iota
-	IFLA_BRIDGE_VLAN_TUNNEL_ID
-	IFLA_BRIDGE_VLAN_TUNNEL_VID
-	IFLA_BRIDGE_VLAN_TUNNEL_FLAGS
 )
 
 const (
@@ -48,11 +40,6 @@ const (
 //   __u16 flags;
 //   __u16 vid;
 // };
-
-type TunnelInfo struct {
-	TunId uint32
-	Vid   uint16
-}
 
 type BridgeVlanInfo struct {
 	Flags uint16

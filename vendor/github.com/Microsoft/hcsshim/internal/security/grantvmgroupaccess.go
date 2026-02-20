@@ -63,7 +63,8 @@ const (
 	shareModeRead  shareMode = 0x1
 	shareModeWrite shareMode = 0x2
 
-	sidVMGroup = "S-1-5-83-0"
+	//nolint:stylecheck // ST1003
+	sidVmGroup = "S-1-5-83-0"
 
 	trusteeFormIsSid trusteeForm = 0
 
@@ -74,13 +75,13 @@ const (
 // include Grant ACE entries for the VM Group SID. This is a golang re-
 // implementation of the same function in vmcompute, just not exported in
 // RS5. Which kind of sucks. Sucks a lot :/
-func GrantVmGroupAccess(name string) error { //nolint:staticcheck // ST1003: ALL_CAPS
+func GrantVmGroupAccess(name string) error { //nolint:stylecheck // ST1003
 	return GrantVmGroupAccessWithMask(name, accessMaskDesiredPermission)
 }
 
 // GrantVmGroupAccessWithMask sets the desired DACL for a specified file or
 // directory.
-func GrantVmGroupAccessWithMask(name string, access accessMask) error { //nolint:staticcheck // ST1003: ALL_CAPS
+func GrantVmGroupAccessWithMask(name string, access accessMask) error { //nolint:stylecheck // ST1003
 	if access == 0 || access<<4 != 0 {
 		return fmt.Errorf("invalid access mask: 0x%08x", access)
 	}
@@ -153,9 +154,9 @@ func createFile(name string, isDir bool) (syscall.Handle, error) {
 // The caller is responsible for LocalFree of the returned DACL on success.
 func generateDACLWithAcesAdded(name string, isDir bool, desiredAccess accessMask, origDACL uintptr) (uintptr, error) {
 	// Generate pointers to the SIDs based on the string SIDs
-	sid, err := syscall.StringToSid(sidVMGroup)
+	sid, err := syscall.StringToSid(sidVmGroup)
 	if err != nil {
-		return 0, fmt.Errorf("%s syscall.StringToSid %s %s: %w", gvmga, name, sidVMGroup, err)
+		return 0, fmt.Errorf("%s syscall.StringToSid %s %s: %w", gvmga, name, sidVmGroup, err)
 	}
 
 	inheritance := inheritModeNoInheritance

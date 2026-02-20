@@ -1,4 +1,9 @@
 # Kubernetes Cluster with Containerd
+<p align="center">
+<img src="https://kubernetes.io/images/favicon.png" width="50" height="50">
+<img src="https://containerd.io/img/logos/icon/black/containerd-icon-black.png" width="50" >
+</p>
+
 
 This document provides the steps to bring up a Kubernetes cluster using ansible and kubeadm tools.
 
@@ -22,7 +27,7 @@ $ cat hosts
 At this point, the ansible playbook should be able to ssh into the machines in the hosts file.
 ```console
 git clone https://github.com/containerd/containerd
-cd ./containerd/contrib/ansible
+cd ./contrib/ansible
 ansible-playbook -i hosts cri-containerd.yaml
 ```
 A typical cloud login might have a username and private key file, in which case the following can be used:

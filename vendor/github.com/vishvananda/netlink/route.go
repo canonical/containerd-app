@@ -45,7 +45,7 @@ type Encap interface {
 	Equal(Encap) bool
 }
 
-// Protocol describe what was the originator of the route
+//Protocol describe what was the originator of the route
 type RouteProtocol int
 
 // Route represents a netlink route.
@@ -70,7 +70,6 @@ type Route struct {
 	Via              Destination
 	Realm            int
 	MTU              int
-	MTULock          bool
 	Window           int
 	Rtt              int
 	RttVar           int
@@ -82,7 +81,6 @@ type Route struct {
 	InitCwnd         int
 	Features         int
 	RtoMin           int
-	RtoMinLock       bool
 	InitRwnd         int
 	QuickACK         int
 	Congctl          string
@@ -156,15 +154,8 @@ type flagString struct {
 }
 
 // RouteUpdate is sent when a route changes - type is RTM_NEWROUTE or RTM_DELROUTE
-
-// NlFlags is only non-zero for RTM_NEWROUTE, the following flags can be set:
-//   - unix.NLM_F_REPLACE - Replace existing matching config object with this request
-//   - unix.NLM_F_EXCL - Don't replace the config object if it already exists
-//   - unix.NLM_F_CREATE - Create config object if it doesn't already exist
-//   - unix.NLM_F_APPEND - Add to the end of the object list
 type RouteUpdate struct {
-	Type    uint16
-	NlFlags uint16
+	Type uint16
 	Route
 }
 

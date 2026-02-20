@@ -57,11 +57,9 @@ func (r *Result) Raw() []*types100.Result {
 }
 
 type Config struct {
-	IPConfigs  []*IPConfig
-	Mac        string
-	Sandbox    string
-	PciID      string
-	SocketPath string
+	IPConfigs []*IPConfig
+	Mac       string
+	Sandbox   string
 }
 
 // createResult creates a Result from the given slice of types100.Result, adding
@@ -69,6 +67,8 @@ type Config struct {
 // interfaces created in the namespace. It returns an error if validation of
 // results fails, or if a network could not be found.
 func (c *libcni) createResult(results []*types100.Result) (*Result, error) {
+	c.RLock()
+	defer c.RUnlock()
 	r := &Result{
 		Interfaces: make(map[string]*Config),
 		raw:        results,
@@ -84,10 +84,8 @@ func (c *libcni) createResult(results []*types100.Result) (*Result, error) {
 		// Walk through all the interface in each result
 		for _, intf := range result.Interfaces {
 			r.Interfaces[intf.Name] = &Config{
-				Mac:        intf.Mac,
-				Sandbox:    intf.Sandbox,
-				SocketPath: intf.SocketPath,
-				PciID:      intf.PciID,
+				Mac:     intf.Mac,
+				Sandbox: intf.Sandbox,
 			}
 		}
 		// Walk through all the IPs in the result and attach it to corresponding

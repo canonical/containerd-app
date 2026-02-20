@@ -79,8 +79,9 @@ func GuessGPGVersion() GPGVersion {
 		return GPGv2
 	} else if err := exec.Command("gpg", "--version").Run(); err == nil {
 		return GPGv1
+	} else {
+		return GPGVersionUndetermined
 	}
-	return GPGVersionUndetermined
 }
 
 // NewGPGClient creates a new GPGClient object representing the given version

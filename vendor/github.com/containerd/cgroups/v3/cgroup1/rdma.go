@@ -85,25 +85,22 @@ func parseRdmaKV(raw string, entry *v1.RdmaEntry) {
 	var value uint64
 	var err error
 
-	k, v, found := strings.Cut(raw, "=")
-	if !found {
-		return
-	}
-
-	if v == "max" {
-		value = math.MaxUint32
-	} else {
-		value, err = parseUint(v, 10, 32)
-		if err != nil {
-			return
+	parts := strings.Split(raw, "=")
+	switch len(parts) {
+	case 2:
+		if parts[1] == "max" {
+			value = math.MaxUint32
+		} else {
+			value, err = parseUint(parts[1], 10, 32)
+			if err != nil {
+				return
+			}
 		}
-	}
-
-	switch k {
-	case "hca_handle":
-		entry.HcaHandles = uint32(value)
-	case "hca_object":
-		entry.HcaObjects = uint32(value)
+		if parts[0] == "hca_handle" {
+			entry.HcaHandles = uint32(value)
+		} else if parts[0] == "hca_object" {
+			entry.HcaObjects = uint32(value)
+		}
 	}
 }
 

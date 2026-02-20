@@ -24,27 +24,25 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"testing"
 	"time"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
-	"github.com/opencontainers/runtime-spec/specs-go/features"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
-	"golang.org/x/sync/semaphore"
 
-	. "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/core/leases"
-	"github.com/containerd/containerd/v2/defaults"
-	imagelist "github.com/containerd/containerd/v2/integration/images"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/containerd/containerd/v2/pkg/testutil"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/containerd/platforms"
+
+	. "github.com/containerd/containerd"
+	"github.com/containerd/containerd/defaults"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	imagelist "github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/pkg/testutil"
 )
 
 var (
@@ -132,7 +130,7 @@ func TestMain(m *testing.M) {
 		"snapshotter": os.Getenv("TEST_SNAPSHOTTER"),
 	}).Info("running tests against containerd")
 
-	snapshotter := defaults.DefaultSnapshotter
+	snapshotter := DefaultSnapshotter
 	if ss := os.Getenv("TEST_SNAPSHOTTER"); ss != "" {
 		snapshotter = ss
 	}
@@ -192,7 +190,7 @@ func TestMain(m *testing.M) {
 	os.Exit(status)
 }
 
-func newClient(t testing.TB, address string, opts ...Opt) (*Client, error) {
+func newClient(t testing.TB, address string, opts ...ClientOpt) (*Client, error) {
 	if testing.Short() {
 		t.Skip()
 	}
@@ -422,6 +420,22 @@ func TestImagePullSomePlatforms(t *testing.T) {
 	}
 }
 
+func TestImagePullSchema1(t *testing.T) {
+	client, err := newClient(t, address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	ctx, cancel := testContext(t)
+	defer cancel()
+	schema1TestImage := "gcr.io/google_containers/pause:3.0@sha256:0d093c962a6c2dd8bb8727b661e2b5f13e9df884af9945b4cc7088d9350cd3ee"
+	_, err = client.Pull(ctx, schema1TestImage, WithPlatform(platforms.DefaultString()), WithSchema1Conversion)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestImagePullWithConcurrencyLimit(t *testing.T) {
 	if os.Getenv("CIRRUS_CI") != "" {
 		// This test tends to fail under Cirrus CI + Vagrant due to "connection reset by peer" from
@@ -440,8 +454,7 @@ func TestImagePullWithConcurrencyLimit(t *testing.T) {
 	defer cancel()
 	_, err = client.Pull(ctx, testImage,
 		WithPlatformMatcher(platforms.Default()),
-		WithMaxConcurrentDownloads(2),
-	)
+		WithMaxConcurrentDownloads(2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,27 +486,6 @@ func TestImagePullWithTracing(t *testing.T) {
 	spans := exp.GetSpans()
 	validateRootSpan(t, spanNameExpected, spans)
 
-}
-
-func TestImagePullWithConcurrentUnpacks(t *testing.T) {
-	client, err := newClient(t, address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-
-	ctx, cancel := testContext(t)
-	defer cancel()
-	_, err = client.Pull(ctx, testMultiLayeredImage,
-		WithPlatformMatcher(platforms.Default()),
-		WithPullUnpack,
-		WithUnpackOpts([]UnpackOpt{WithUnpackLimiter(semaphore.NewWeighted(3))}),
-	)
-	defer client.ImageService().Delete(ctx, testMultiLayeredImage, images.SynchronousDelete())
-
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestClientReconnect(t *testing.T) {
@@ -553,48 +545,5 @@ func TestDefaultRuntimeWithNamespaceLabels(t *testing.T) {
 	defer testClient.Close()
 	if testClient.Runtime() != testRuntime {
 		t.Error("failed to set default runtime from namespace labels")
-	}
-}
-
-func TestRuntimeInfo(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("io.containerd.runhcs.v1 does not implement `containerd-shim-runhcs-v1.exe -info` yet")
-	}
-
-	client, err := newClient(t, address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-
-	ctx, cancel := testContext(t)
-	defer cancel()
-
-	rti, err := client.RuntimeInfo(ctx, "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if rti.Name == "" {
-		t.Fatal("got empty RuntimeInfo.Name")
-	}
-
-	feat, ok := rti.Features.(*features.Features)
-	if !ok {
-		t.Fatalf("expected RuntimeInfo.Features to be *features.Features, got %T", rti.Features)
-	}
-
-	var rroRecognized bool
-	for _, f := range feat.MountOptions {
-		// "rro" is recognized since runc v1.1.
-		// The functionality needs kernel >= 5.12, but `runc features` consistently include "rro" in feat.MountOptions.
-		if f == "rro" {
-			rroRecognized = true
-		}
-	}
-	if !rroRecognized {
-		t.Fatalf("expected feat.MountOptions to contain \"rro\", only got %v", feat.MountOptions)
 	}
 }

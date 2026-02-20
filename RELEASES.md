@@ -39,39 +39,44 @@ be done from that branch. For example, once we release `v1.0.0`, a branch
 `release/1.0` will be created from that tag. All future patch releases will be
 done against that branch.
 
-### Release Cadence
-
-Minor releases are provided on a time basis with an initial cadence of 6 months.
-The next two containerd releases should have a target release date scheduled based
-on the current release cadence. Changes to the release cadence will not impact
-releases which are already scheduled.
-
-The maintainers will maintain a roadmap and milestones for each release, however,
-features may be pushed to accommodate the release timeline. If your issue or feature
-is not present in the roadmap, please open a Github issue or leave a
-comment requesting it be added to a milestone.
-
-### Patch Releases
-
-Patch releases are made directly from release branches and will be done as needed
-by the release branch owners.
-
 ### Pre-releases
 
 Pre-releases, such as alphas, betas and release candidates will be conducted
 from their source branch. For major and minor releases, these releases will be
-done from main. For patch releases, it is uncommon to have pre-releases but
-they may have an rc based on the discretion of the release branch owners.
+done from main. For patch releases, these pre-releases should be done within
+the corresponding release branch.
+
+While pre-releases are done to assist in the stabilization process, no
+guarantees are provided.
+
+### Upgrade Path
+
+The upgrade path for containerd is such that the 0.0.x patch releases are
+always backward compatible with its major and minor version. Minor (0.x.0)
+version will always be compatible with the previous minor release. i.e. 1.2.0
+is backwards compatible with 1.1.0 and 1.1.0 is compatible with 1.0.0. There is
+no compatibility guarantees for upgrades that span multiple, _minor_ releases.
+For example, 1.0.0 to 1.2.0 is not supported. One should first upgrade to 1.1,
+then 1.2.
+
+There are no compatibility guarantees with upgrades to _major_ versions. For
+example, upgrading from 1.0.0 to 2.0.0 may require resources to migrated or
+integrations to change. Each major version will be supported for at least 1
+year with bug fixes and security patches.
+
+### Next Release
+
+The activity for the next release will be tracked in the
+[milestones](https://github.com/containerd/containerd/milestones). If your
+issue or PR is not present in a milestone, please reach out to the maintainers
+to create the milestone or add an issue or PR to an existing milestone.
 
 ### Support Horizon
 
 Support horizons will be defined corresponding to a release branch, identified
 by `<major>.<minor>`. Release branches will be in one of several states:
 
-- __*Future*__: An upcoming scheduled release.
-- __*Alpha*__: The next scheduled release on the main branch under active development.
-- __*Beta*__: The next scheduled release on the main branch under testing. Begins 8-10 weeks before a final release.
-- __*RC*__: The next scheduled release on the main branch under final testing and stabilization. Begins 2-4 weeks before a final release. For new releases where the source branch is main, the main branch will be in a feature freeze during this phase.
+- __*Next*__: The next planned release branch.
 - __*Active*__: The release is a stable branch which is currently supported and accepting patches.
 - __*Extended*__: The release branch is only accepting security patches.
 - __*LTS*__: The release is a long term stable branch which is currently supported and accepting patches.
@@ -85,56 +90,34 @@ whichever is longer. Additionally, releases may have an extended security suppor
 period after the end of the active period to accept security backports. This
 timeframe will be decided by maintainers before the end of the active status.
 
-Long term stable (_LTS_) releases are owned by at least two maintainers for at least two
-years after their initial _minor_ (x.y.0) release. The maintainers of the _LTS_ branch may commit to
-a longer period or extend the support period as needed. These branches will accept bug reports and
-backports until the end of life date. They may also accept a wider range of patches than non-_LTS_
-releases to support the longer term maintainability of the branch, including library dependency,
-toolchain (including Go) and other version updates which are needed to ensure each release is built
-with fully supported dependencies. Feature backports are up to the discretion of the maintainers who
-own the branch but should be rejected by default. There is no defined limit to the number of _LTS_
-branches and any branch may become an _LTS_ branch after its initial release. There is no guarantee
-that a new _LTS_ branch will be designated before existing _LTS_ branches reach their end of life.
+Long term stable (_LTS_) releases will be supported for at least three years after
+their initial _minor_ release. These branches will accept bug reports and
+backports until the end of life date. They may also accept a wider range of
+patches than non-_LTS_ releases to support the longer term maintainability of the
+branch, including library dependency, toolchain (including Go) and other version updates
+which are needed to ensure each release is built with fully supported dependencies and
+remains usable by containerd clients. There should be at least a 6-month overlap between
+the end of life of an _LTS_ release and the initial release of a new _LTS_ release.
+Up to 6 months before the announced end of life of an _LTS_ branch, the branch may
+convert to a regular _Active_ release with stricter backport criteria.
 
-### Release Owners
+The current state is available in the following tables:
 
-Every release shall be assigned owners when entering into the beta stage of the release. The initial
-release owners will be responsible for creating the releases and ensuring the release is on time.
-Once the release is in rc, the release owners should be part of any discussion around merging
-impactful or risky changes. Every release should have at least two owners who are all active
-maintainers and one of which has been a release owner in at least two prior releases.
+| Release                                                              | Status        | Start              | End of Life                                      |
+| ---------                                                            | ------------- | ------------------ | -------------------                              |
+| [0.0](https://github.com/containerd/containerd/releases/tag/0.0.5)   | End of Life   | Dec 4, 2015        | -                                                |
+| [0.1](https://github.com/containerd/containerd/releases/tag/v0.1.0)  | End of Life   | Mar 21, 2016       | -                                                |
+| [0.2](https://github.com/containerd/containerd/tree/v0.2.x)          | End of Life   | Apr 21, 2016       | December 5, 2017                                 |
+| [1.0](https://github.com/containerd/containerd/releases/tag/v1.0.3)  | End of Life   | December 5, 2017   | December 5, 2018                                 |
+| [1.1](https://github.com/containerd/containerd/releases/tag/v1.1.8)  | End of Life   | April 23, 2018     | October 23, 2019                                 |
+| [1.2](https://github.com/containerd/containerd/releases/tag/v1.2.13) | End of Life   | October 24, 2018   | October 15, 2020                                 |
+| [1.3](https://github.com/containerd/containerd/releases/tag/v1.3.10) | End of Life   | September 26, 2019 | March 4, 2021                                    |
+| [1.4](https://github.com/containerd/containerd/releases/tag/v1.4.13) | End of Life   | August 17, 2020    | March 3, 2022                                    |
+| [1.5](https://github.com/containerd/containerd/releases/tag/v1.5.18) | End of Life   | May 3, 2021        | February 28, 2023                                |
+| [1.6](https://github.com/containerd/containerd/releases/tag/v1.6.19) | LTS           | February 15, 2022  | max(February 15, 2025 or next LTS + 6 months)    |
+| [1.7](https://github.com/containerd/containerd/releases/tag/v1.7.0)  | Active        | March 10, 2023     | max(March 10, 2024 or release of 2.0 + 6 months) |
+| [2.0](https://github.com/containerd/containerd/milestone/35)         | Next          | TBD                | TBD                                              |
 
-Once the final release is out and the release branch moves to active, ownership will be
-transferred back over to all committers. Active releases are maintained by all committers
-until the release reaches end of life or the branch transitions to _LTS_.
-
-Every _LTS_ release requires at least two maintainers to volunteer as owners. The owners of the
-_LTS_ release may step down or be replaced by another maintainer at any time if they can no longer
-support the release. If no maintainers volunteer to own the _LTS_ release after maintainers step
-down, the branch will end of life after 6 months of extended support with ownership transferred back
-to all committers.
-
-### Current State of containerd Releases
-
-| Release                                                              | Status        | Start                          | End of Life                    | Owners                 |
-| -------------------------------------------------------------------- | ------------- | ------------------------------ | ------------------------------ | ---------------------- |
-| [0.0](https://github.com/containerd/containerd/releases/tag/0.0.5)   | End of Life   | Dec 4, 2015                    | -                              |                        |
-| [0.1](https://github.com/containerd/containerd/releases/tag/v0.1.0)  | End of Life   | Mar 21, 2016                   | -                              |                        |
-| [0.2](https://github.com/containerd/containerd/tree/v0.2.x)          | End of Life   | Apr 21, 2016                   | December 5, 2017               |                        |
-| [1.0](https://github.com/containerd/containerd/releases/tag/v1.0.3)  | End of Life   | December 5, 2017               | December 5, 2018               |                        |
-| [1.1](https://github.com/containerd/containerd/releases/tag/v1.1.8)  | End of Life   | April 23, 2018                 | October 23, 2019               |                        |
-| [1.2](https://github.com/containerd/containerd/releases/tag/v1.2.13) | End of Life   | October 24, 2018               | October 15, 2020               |                        |
-| [1.3](https://github.com/containerd/containerd/releases/tag/v1.3.10) | End of Life   | September 26, 2019             | March 4, 2021                  |                        |
-| [1.4](https://github.com/containerd/containerd/releases/tag/v1.4.13) | End of Life   | August 17, 2020                | March 3, 2022                  |                        |
-| [1.5](https://github.com/containerd/containerd/releases/tag/v1.5.18) | End of Life   | May 3, 2021                    | February 28, 2023              |                        |
-| [1.6](https://github.com/containerd/containerd/releases/tag/v1.6.0)  | End of Life   | February 15, 2022              | August 23, 2025                | @containerd/committers |
-| [1.7](https://github.com/containerd/containerd/releases/tag/v1.7.0)  | LTS           | March 10, 2023                 | September 2026*                | @containerd/committers |
-| [2.0](https://github.com/containerd/containerd/releases/tag/v2.0.0)  | Active        | November 5, 2024               | November 7, 2025               | @containerd/committers |
-| [2.1](https://github.com/containerd/containerd/releases/tag/v2.1.0)  | Active        | May 7, 2025                    | May 5, 2026                    | @containerd/committers |
-| [2.2](https://github.com/containerd/containerd/releases/tag/v2.2.0)  | Active        | November 5, 2025               | November 6, 2026               | @containerd/committers |
-| [2.3](https://github.com/containerd/containerd/milestone/50)         | _Future_      | May 6, 2026 (_tentative_)      | _TBD_                          | _TBD_                  |
-
-\* Support for the 1.7 release branch is provided by @containerd/committers until March 10, 2026. Extended support through September 2026 is provided by @chrishenzie and @samuelkarp.
 
 ### Kubernetes Support
 
@@ -147,26 +130,24 @@ for the list of actively tested versions. Kubernetes only supports n-3 minor
 release versions and containerd will ensure there is always a supported version
 of containerd for every supported version of Kubernetes.
 
-| Kubernetes Version | containerd Version               | CRI Version     |
-|--------------------|----------------------------------|-----------------|
-| 1.31               | 2.1.0+, 2.0.0+, 1.7.20+, 1.6.34+ | v1              |
-| 1.32               | 2.1.0+, 2.0.1+, 1.7.24+, 1.6.36+ | v1              |
-| 1.33               | 2.1.0+, 2.0.4+, 1.7.24+, 1.6.36+ | v1              |
-| 1.34               | 2.1.3+, 2.0.6+, 1.7.28+, 1.6.39+ | v1              |
+| Kubernetes Version | containerd Version | CRI Version     |
+|--------------------|--------------------|-----------------|
+| 1.24               | 1.7.0+, 1.6.4+     | v1, v1alpha2    |
+| 1.25               | 1.7.0+, 1.6.4+     | v1, v1alpha2 ** |
+| 1.26               | 1.7.0+, 1.6.15+    | v1              |
+
+** Note: containerd v1.6.*, and v1.7.* support CRI v1 and v1alpha2 through EOL as those releases continue to support older versions of k8s, cloud providers, and other clients using CRI v1alpha2. CRI v1alpha2 is deprecated in v1.7 and will be removed in containerd v2.0.
 
 Deprecated containerd and kubernetes versions
 
-| Containerd Version       | Kubernetes Version | CRI Version                          |
-|--------------------------|--------------------|--------------------------------------|
-| v1.0 (w/ cri-containerd) | 1.7, 1.8, 1.9      | v1alpha1                             |
-| v1.1                     | 1.10+              | v1alpha2                             |
-| v1.2                     | 1.10+              | v1alpha2                             |
-| v1.3                     | 1.12+              | v1alpha2                             |
-| v1.4                     | 1.19+              | v1alpha2                             |
-| v1.5                     | 1.20+              | v1 (1.23+), v1alpha2 (until 1.25) ** |
-| v1.6.15+, v1.7.0+        | 1.26+              | v1                                   |
-
-** Note: containerd v1.6.*, and v1.7.* support CRI v1 and v1alpha2 through EOL as those releases continue to support older versions of k8s, cloud providers, and other clients using CRI v1alpha2. CRI v1alpha2 is deprecated in v1.7 and is not present in containerd v2.0.
+| Containerd Version       | Kubernetes Version | CRI Version          |
+|--------------------------|--------------------|----------------------|
+| v1.0 (w/ cri-containerd) | 1.7, 1.8, 1.9      | v1alpha1             |
+| v1.1                     | 1.10+              | v1alpha2             |
+| v1.2                     | 1.10+              | v1alpha2             |
+| v1.3                     | 1.12+              | v1alpha2             |
+| v1.4                     | 1.19+              | v1alpha2             |
+| v1.5                     | 1.20+              | v1 (1.23+), v1alpha2 |
 
 ### Backporting
 
@@ -211,11 +192,6 @@ process:
 	```console
 	$ git cherry-pick -xsS <commit>
 	```
-
-   If all of the work from a particular PR/set of PRs is wanted,
-   cherry-pick the individual commits instead of the merge commit.
-   Take #8624 for example, 82ec62b is favored over 9e834e7.
-
    (Optional) If other commits exist in the main branch which are related
    to the cherry-picked commit; eg: fixes to the main PR. It is recommended
    to cherry-pick those commits also into this same `my-backport-branch`.
@@ -241,24 +217,6 @@ completed, open a PR using the process above.
 Only when the bug is not seen in main and must be made for the specific
 release branch should you open a PR with new code.
 
-### Upgrade Path
-
-The upgrade path for containerd is such that the 0.0.x patch releases are
-always backward compatible with its major and minor version. Minor (0.x.0)
-version will always be compatible with the previous minor release. i.e. 1.2.0
-is backwards compatible with 1.1.0 and 1.1.0 is compatible with 1.0.0. There is
-no compatibility guarantees for upgrades that span multiple, _minor_ releases.
-For example, 1.0.0 to 1.2.0 is not supported. One should first upgrade to 1.1,
-then 1.2.
-
-There are no compatibility guarantees with upgrades to _major_ versions. For 2.0, migration was
-added to ensure upgrading from 1.6 or 1.7 to 2.0 is easy. The latest releases of 1.6 and 1.7 provide
-deprecation warnings if any configuration is used which is incompatible with 2.0. If deprecation
-warnings are showing up, the configuration can be safely migrated in 1.6 or 1.7 before upgrading to
-2.0. Once no deprecation warnings are showing up, the upgrade to 2.0 should be smooth. Always
-check the release notes, breaking changes are listed there, and test your configuration before
-upgrading.
-
 ## Public API Stability
 
 The following table provides an overview of the components covered by
@@ -272,7 +230,7 @@ containerd versions:
 | Runtime Shim API | Stable   | 1.2                | - |
 | Daemon Config    | Stable   | 1.0                | - |
 | CRI GRPC API     | Stable   | 1.6 (_CRI v1_)     | [cri-api](https://github.com/kubernetes/cri-api/tree/master/pkg/apis/runtime/v1) |
-| Go client API    | Stable   | 2.0                | [godoc](https://pkg.go.dev/github.com/containerd/containerd/v2/client) |
+| Go client API    | Unstable | _future_           | [godoc](https://godoc.org/github.com/containerd/containerd) |
 | `ctr` tool       | Unstable | Out of scope       | - |
 
 From the version stated in the above table, that component must adhere to the
@@ -281,11 +239,6 @@ stability constraints expected in release versions.
 Unless explicitly stated here, components that are called out as unstable or
 not covered may change in a future minor version. Breaking changes to
 "unstable" components will be avoided in patch versions.
-
-Go client API stability includes the `client`, `defaults` and `version` package
-as well as all packages under `pkg`, `core`, `api` and `protobuf`.
-All packages under `cmd`, `contrib`, `integration`, and `internal` are not
-considered part of the stable client API.
 
 ### GRPC API
 
@@ -304,38 +257,6 @@ and new fields on messages may be added if they are optional.
 `*.pb.txt` files are generated at each API release. They prevent unintentional changes
 to the API by having a diff that the CI can run. These files are not intended to be
 consumed or used by clients.
-
-As of containerd 2.0, the API version diverges from the main containerd version.
-While containerd 2.0 is a _major_ version jump for containerd, the API will remain
-on 1.x to remain backwards compatible with prior releases and existing clients.
-The 2.0 release adds the API to a separate Go module which can remain as the
-`github.com/containerd/containerd/api` Go package and imported separately from the
-rest of containerd.
-
-The API minor version will continue to be incremented for each major and minor
-version release of containerd. However, the API is tagged directly out of the
-main branch with the minor version incrementing earlier in the next release cycle
-rather than at the end. This means that after the containerd 2.0 release, the next
-API change is tagged as `api/v1.9.0` prior to any containerd 2.1 release. The
-latest API version should be backported to all supported versions and patch
-releases for prior API versions should be avoided if possible.
-
-
-| Containerd Version | API Version at Release |
-|--------------------|------------------------|
-| v1.0               | 1.0                    |
-| v1.1               | 1.1                    |
-| v1.2               | 1.2                    |
-| v1.3               | 1.3                    |
-| v1.4               | 1.4                    |
-| v1.5               | 1.5                    |
-| v1.6               | 1.6                    |
-| v1.7               | 1.7                    |
-| v2.0               | 1.8                    |
-| v2.1               | 1.9                    |
-| v2.2               | 1.10                   |
-| _v2.3_             | _1.11_                 |
-
 
 ### Metrics API
 
@@ -376,14 +297,17 @@ follow that format.
 
 ### Go client API
 
-As of containerd 2.0, the Go client API documented in
-[godoc](https://godoc.org/github.com/containerd/containerd/v2/client) is stable.
-Note that because the Go client interfaces with the GRPC API, clients building on top
-of the Go client should remain compatible with future server releases implementing the
-same major GRPC API series. For backwards compatability and as a general rule of thumb,
-it is the client's responsibility to handle not implemented errors returned by the containerd daemon.
+The Go client API, documented in
+[godoc](https://godoc.org/github.com/containerd/containerd), is currently
+considered unstable. It is recommended to vendor the necessary components to
+stabilize your project build. Note that because the Go API interfaces with the
+GRPC API, clients written against a 1.0 Go API should remain compatible with
+future 1.x series releases.
 
-Any changes to the Go client API should be detectable at compile time, so upgrading will
+We intend to stabilize the API in a future release when more integrations have
+been carried out.
+
+Any changes to the API should be detectable at compile time, so upgrading will
 be a matter of fixing compilation errors and moving from there.
 
 ### CRI GRPC API
@@ -417,26 +341,9 @@ We will do our best to not break compatibility in the tool in _patch_ releases.
 The daemon's configuration file, commonly located in `/etc/containerd/config.toml`
 is versioned and backwards compatible.  The `version` field in the config
 file specifies the config's version.  If no version number is specified inside
-the config file then it is assumed to be a version `1` config and parsed as such.
-The latest version is `version = 2`. The `main` branch is being prepared to support
-the next config version `3`. The configuration is automatically migrated to the
-latest version on each startup, leaving the configuration file unchanged. To avoid
-the migration and optimize the daemon startup time, use `containerd config migrate`
-to output the configuration as the latest version. Version `1` is no longer deprecated
-and is supported by migration, however, it is recommended to use at least version `2`.
-
-Migrating a configuration to the latest version will limit the prior versions
-of containerd in which the configuration can be used. It is suggested not to
-migrate your configuration file until you are confident you do not need to
-quickly rollback your containerd version. Use the table of configuration
-versions to containerd releases to know the minimum version of containerd for
-each configuration version.
-
-| Configuration Version | Minimum containerd version |
-|-----------------------|----------------------------|
-| 1                     | v1.0.0                     |
-| 2                     | v1.3.0                     |
-| 3                     | v2.0.0                     |
+the config file then it is assumed to be a version 1 config and parsed as such.
+Please use `version = 2` to enable version 2 config as version 1 has been
+deprecated.
 
 ### Not Covered
 
@@ -462,42 +369,33 @@ against total impact.
 
 The deprecated features are shown in the following table:
 
-| Component                                                                        | Deprecation release | Target release for removal            | Recommendation                           |
-|----------------------------------------------------------------------------------|---------------------|---------------------------------------|------------------------------------------|
-| Runtime V1 API and implementation (`io.containerd.runtime.v1.linux`)             | containerd v1.4     | containerd v2.0 ✅                    | Use `io.containerd.runc.v2`              |
-| Runc V1 implementation of Runtime V2 (`io.containerd.runc.v1`)                   | containerd v1.4     | containerd v2.0 ✅                    | Use `io.containerd.runc.v2`              |
-| Built-in `aufs` snapshotter                                                      | containerd v1.5     | containerd v2.0 ✅                    | Use `overlayfs` snapshotter              |
-| Container label `containerd.io/restart.logpath`                                  | containerd v1.5     | containerd v2.0 ✅                    | Use `containerd.io/restart.loguri` label |
-| `cri-containerd-*.tar.gz` release bundles                                        | containerd v1.6     | containerd v2.0 ✅                    | Use `containerd-*.tar.gz` bundles        |
-| Pulling Schema 1 images (`application/vnd.docker.distribution.manifest.v1+prettyjws`) | containerd v1.7     | containerd v2.1 (Disabled in v2.0) ✅ | Use Schema 2 or OCI images               |
-| CRI `v1alpha2`                                                                   | containerd v1.7     | containerd v2.0 ✅                    | Use CRI `v1`                             |
-| Legacy CRI implementation of podsandbox support                                  | containerd v2.0     | containerd v2.0 ✅                    |                                          |
-| Go-Plugin library (`*.so`) as containerd runtime plugin                          | containerd v2.0     | containerd v2.1 ✅                    | Use external plugins (proxy or binary)   |
-| CNI `bin_dir` in CRI runtime config (`plugins.'io.containerd.cri.v1.runtime'.cni.bin_dir`) | containerd v2.1     | containerd v2.3                       | Change `bin_dir` to `bin_dirs` in the same section which supports a list of directories  |
-| NRI v0.1.0 plugin support                                                        | containerd v2.2     | containerd v2.3                       | Use the v010-adapter NRI plugin, or update v0.1.0 plugins to use the current NRI API |
-| cgroup v1 support                                                                | containerd v2.2     | (May 2029)                            | Use cgroup v2                           |
-
-- Pulling Schema 1 images has been disabled in containerd v2.0, but it still can be enabled by setting an environment variable `CONTAINERD_ENABLE_DEPRECATED_PULL_SCHEMA_1_IMAGE=1`
-  until containerd v2.1. `ctr` users have to specify `--local` too (e.g., `ctr images pull --local`). Users of CRI clients (such as Kubernetes and `crictl`) have to specify this environment variable on the containerd daemon (usually in the systemd unit).
-- The latest release in May 2029 may not necessarily support cgroup v1, but there will be at least one maintained branch with the support for cgroup v1.
+| Component                                                                        | Deprecation release | Target release for removal | Recommendation                           |
+|----------------------------------------------------------------------------------|---------------------|----------------------------|------------------------------------------|
+| Runtime V1 API and implementation (`io.containerd.runtime.v1.linux`)             | containerd v1.4     | containerd v2.0            | Use `io.containerd.runc.v2`              |
+| Runc V1 implementation of Runtime V2 (`io.containerd.runc.v1`)                   | containerd v1.4     | containerd v2.0            | Use `io.containerd.runc.v2`              |
+| config.toml `version = 1`                                                        | containerd v1.5     | containerd v2.0            | Use config.toml `version = 2`            |
+| Built-in `aufs` snapshotter                                                      | containerd v1.5     | containerd v2.0            | Use `overlayfs` snapshotter              |
+| Container label `containerd.io/restart.logpath`                                  | containerd v1.5     | containerd v2.0            | Use `containerd.io/restart.loguri` label |
+| `cri-containerd-*.tar.gz` release bundles                                        | containerd v1.6     | containerd v2.0            | Use `containerd-*.tar.gz` bundles        |
+| Pulling Schema 1 images (`application/vnd.docker.distribution.manifest.v1+json`) | containerd v1.7     | containerd v2.0            | Use Schema 2 or OCI images               |
+| CRI `v1alpha2`                                                                   | containerd v1.7     | containerd v2.0            | Use CRI `v1`                             |
 
 ### Deprecated config properties
 The deprecated properties in [`config.toml`](./docs/cri/config.md) are shown in the following table:
 
 | Property Group                                                       | Property                     | Deprecation release | Target release for removal | Recommendation                                  |
 |----------------------------------------------------------------------|------------------------------|---------------------|----------------------------|-------------------------------------------------|
-|`[plugins."io.containerd.grpc.v1.cri"]`                               | `systemd_cgroup`             | containerd v1.3     | containerd v2.0 ✅         | Use `SystemdCgroup` in runc options (see below) |
-|`[plugins."io.containerd.grpc.v1.cri".containerd]`                    | `untrusted_workload_runtime` | containerd v1.2     | containerd v2.0 ✅         | Create `untrusted` runtime in `runtimes`        |
-|`[plugins."io.containerd.grpc.v1.cri".containerd]`                    | `default_runtime`            | containerd v1.3     | containerd v2.0 ✅         | Use `default_runtime_name`                      |
-|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*]`         | `runtime_engine`             | containerd v1.3     | containerd v2.0 ✅         | Use runtime v2                                  |
-|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*]`         | `runtime_root`               | containerd v1.3     | containerd v2.0 ✅         | Use `options.Root`                              |
-|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*]`         | `disable_cgroup`             | -                   | containerd v2.0 ✅         | Use [cgroup v2 delegation](https://rootlesscontaine.rs/getting-started/common/cgroup2/) |
-|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*.options]` | `CriuPath`                   | containerd v1.7     | containerd v2.0 ✅         | Set `$PATH` to the `criu` binary                |
-|`[plugins."io.containerd.grpc.v1.cri".registry]`                      | `auths`                      | containerd v1.3     | containerd v2.3            | Use [`ImagePullSecrets`](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). See also [#8228](https://github.com/containerd/containerd/issues/8228). |
-|`[plugins."io.containerd.grpc.v1.cri".registry]`                      | `configs`                    | containerd v1.5     | containerd v2.3            | Use [`config_path`](./docs/hosts.md)            |
-|`[plugins."io.containerd.grpc.v1.cri".registry]`                      | `mirrors`                    | containerd v1.5     | containerd v2.3            | Use [`config_path`](./docs/hosts.md)            |
-|`[plugins."io.containerd.tracing.processor.v1.otlp"]`                 | `endpoint`, `protocol`, `insecure` | containerd v1.6.29 | containerd v2.3       | Use [OTLP environment variables](https://opentelemetry.io/docs/specs/otel/protocol/exporter/), e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, OTEL_EXPORTER_OTLP_PROTOCOL, OTEL_SDK_DISABLED    |
-|`[plugins."io.containerd.internal.v1.tracing"]`                       | `service_name`, `sampling_ratio`   | containerd v1.6.29 | containerd v2.3       | Instead use [OTel environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/), e.g. OTEL_SERVICE_NAME, OTEL_TRACES_SAMPLER*  |
+|`[plugins."io.containerd.grpc.v1.cri"]`                               | `systemd_cgroup`             | containerd v1.3     | containerd v2.0            | Use `SystemdCgroup` in runc options (see below) |
+|`[plugins."io.containerd.grpc.v1.cri".containerd]`                    | `untrusted_workload_runtime` | containerd v1.2     | containerd v2.0            | Create `untrusted` runtime in `runtimes`        |
+|`[plugins."io.containerd.grpc.v1.cri".containerd]`                    | `default_runtime`            | containerd v1.3     | containerd v2.0            | Use `default_runtime_name`                      |
+|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*]`         | `runtime_engine`             | containerd v1.3     | containerd v2.0            | Use runtime v2                                  |
+|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*]`         | `runtime_root`               | containerd v1.3     | containerd v2.0            | Use `options.Root`                              |
+|`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.*.options]` | `CriuPath`                   | containerd v1.7     | containerd v2.0            | Set `$PATH` to the `criu` binary                |
+|`[plugins."io.containerd.grpc.v1.cri".registry]`                      | `auths`                      | containerd v1.3     | containerd v2.0            | Use [`ImagePullSecrets`](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). See also [#8228](https://github.com/containerd/containerd/issues/8228). |
+|`[plugins."io.containerd.grpc.v1.cri".registry]`                      | `configs`                    | containerd v1.5     | containerd v2.0            | Use [`config_path`](./docs/hosts.md)            |
+|`[plugins."io.containerd.grpc.v1.cri".registry]`                      | `mirrors`                    | containerd v1.5     | containerd v2.0            | Use [`config_path`](./docs/hosts.md)            |
+|`[plugins."io.containerd.tracing.processor.v1.otlp"]`                 | `endpoint`, `protocol`, `insecure` | containerd v1.6.29 | containerd v2.0       | Use [OTLP environment variables](https://opentelemetry.io/docs/specs/otel/protocol/exporter/), e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, OTEL_EXPORTER_OTLP_PROTOCOL, OTEL_SDK_DISABLED    |
+|`[plugins."io.containerd.internal.v1.tracing"]`                       | `service_name`, `sampling_ratio`   | containerd v1.6.29 | containerd v2.0       | Instead use [OTel environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/), e.g. OTEL_SERVICE_NAME, OTEL_TRACES_SAMPLER*  |
 
 
 > **Note**
@@ -554,4 +452,4 @@ more quickly.
 | [NRI in CRI Support](https://github.com/containerd/containerd/pull/6019)               | containerd v1.7 | containerd v2.0          |
 | [gRPC Shim](https://github.com/containerd/containerd/pull/8052)                        | containerd v1.7 | containerd v2.0          |
 | [CRI Runtime Specific Snapshotter](https://github.com/containerd/containerd/pull/6899) | containerd v1.7 | containerd v2.0          |
-| [CRI Support for User Namespaces](./docs/user-namespaces/README.md)                    | containerd v1.7 | containerd v2.0          |
+| [CRI Support for User Namespaces](https://github.com/containerd/containerd/pull/7679)  | containerd v1.7 | containerd v2.0          |

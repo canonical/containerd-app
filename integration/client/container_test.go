@@ -31,10 +31,7 @@ import (
 	"testing"
 	"time"
 
-	apievents "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/api/types/runc/options"
 	"github.com/containerd/continuity/fs"
-	"github.com/containerd/errdefs"
 	"github.com/containerd/go-runc"
 	"github.com/containerd/log/logtest"
 	"github.com/containerd/platforms"
@@ -42,18 +39,26 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
 
-	. "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/containers"
-	"github.com/containerd/containerd/v2/core/images"
-	_ "github.com/containerd/containerd/v2/core/runtime"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/containerd/containerd/v2/pkg/oci"
-	gogotypes "github.com/containerd/containerd/v2/pkg/protobuf/types"
-	"github.com/containerd/containerd/v2/plugins"
+	. "github.com/containerd/containerd"
+	apievents "github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/api/types/runc/options"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/containers"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/plugin"
+	gogotypes "github.com/containerd/containerd/protobuf/types"
+	_ "github.com/containerd/containerd/runtime"
 )
 
 func empty() cio.Creator {
+	// TODO (@mlaventure) windows searches for pipes
+	// when none are provided
+	if runtime.GOOS == "windows" {
+		return cio.NewCreator(cio.WithStdio, cio.WithTerminal)
+	}
 	return cio.NullIO
 }
 
@@ -173,7 +178,7 @@ func TestContainerStart(t *testing.T) {
 }
 
 func readShimPath(taskID string) (string, error) {
-	runtime := plugins.RuntimePluginV2.String() + ".task"
+	runtime := fmt.Sprintf("%s.%s", plugin.RuntimePluginV2, "task")
 	shimBinaryNamePath := filepath.Join(defaultState, runtime, testNamespace, taskID, "shim-binary-path")
 
 	shimPath, err := os.ReadFile(shimBinaryNamePath)
@@ -208,6 +213,10 @@ func TestContainerStartWithAbsRuntimePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
+
+	if client.Runtime() == plugin.RuntimeLinuxV1 {
+		t.Skip("test relies on runtime v2")
+	}
 
 	var (
 		image       Image
@@ -324,7 +333,7 @@ func TestContainerOutput(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	stdout := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(stdout)))
+	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,72 +365,12 @@ func TestContainerOutput(t *testing.T) {
 	}
 }
 
-func withStdout(stdout io.Writer) cio.Opt {
+func withByteBuffers(stdout io.Writer) cio.Opt {
+	// TODO: could this use io.Discard?
 	return func(streams *cio.Streams) {
-		streams.Stdin = bytes.NewReader(nil)
+		streams.Stdin = new(bytes.Buffer)
 		streams.Stdout = stdout
-		streams.Stderr = io.Discard
-	}
-}
-
-func TestContainerWait(t *testing.T) {
-	t.Parallel()
-
-	client, err := newClient(t, address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-
-	var (
-		image       Image
-		ctx, cancel = testContext(t)
-		id          = t.Name()
-	)
-	defer cancel()
-
-	image, err = client.GetImage(ctx, testImage)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	container, err := client.NewContainer(ctx, id, WithNewSnapshot(id, image), WithNewSpec(oci.WithImageConfig(image), longCommand))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer container.Delete(ctx)
-
-	task, err := container.NewTask(ctx, empty())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer task.Delete(ctx)
-
-	ctx2, cancle2 := context.WithCancel(ctx)
-	cancle2()
-	statusErrC, _ := task.Wait(ctx2)
-	s := <-statusErrC
-	require.Error(t, s.Error(), "expected wait error, but got nil")
-
-	statusC, err := task.Wait(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := task.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
-		t.Fatal(err)
-	}
-	<-statusC
-
-	err = task.Kill(ctx, syscall.SIGTERM)
-	if err == nil {
-		t.Fatal("second call to kill should return an error")
-	}
-	if !errdefs.IsNotFound(err) {
-		t.Errorf("expected error %q but received %q", errdefs.ErrNotFound, err)
+		streams.Stderr = new(bytes.Buffer)
 	}
 }
 
@@ -874,8 +823,8 @@ func TestKillContainerDeletedByRunc(t *testing.T) {
 
 	// We skip this case when runtime is crun.
 	// More information in https://github.com/containerd/containerd/pull/4214#discussion_r422769497
-	if f := os.Getenv("RUNC_FLAVOR"); f != "" && f != "runc" {
-		t.Skip("test requires runc")
+	if os.Getenv("RUNC_FLAVOR") == "crun" {
+		t.Skip("skip it when using crun")
 	}
 
 	client, err := newClient(t, address)
@@ -883,6 +832,10 @@ func TestKillContainerDeletedByRunc(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
+
+	if client.Runtime() == plugin.RuntimeLinuxV1 {
+		t.Skip("test relies on runtime v2")
+	}
 
 	var (
 		image       Image
@@ -1352,7 +1305,7 @@ func TestContainerHostname(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	stdout := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(stdout)))
+	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1816,7 +1769,7 @@ func TestContainerHook(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		s.Hooks.CreateRuntime = []specs.Hook{
+		s.Hooks.Prestart = []specs.Hook{
 			{
 				Path: path,
 				Args: []string{
@@ -1957,7 +1910,7 @@ func TestContainerExecLargeOutputWithTTY(t *testing.T) {
 		stdout := bytes.NewBuffer(nil)
 
 		execID := t.Name() + "_exec"
-		process, err := task.Exec(ctx, execID, processSpec, cio.NewCreator(withStdout(stdout), withProcessTTY()))
+		process, err := task.Exec(ctx, execID, processSpec, cio.NewCreator(withByteBuffers(stdout), withProcessTTY()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1986,9 +1939,6 @@ func TestContainerExecLargeOutputWithTTY(t *testing.T) {
 
 		const expectedSuffix = "999999 1000000"
 		stdoutString := stdout.String()
-		if len(stdoutString) == 0 {
-			t.Fatal(fmt.Errorf("len (stdoutString) is 0"))
-		}
 		if !strings.Contains(stdoutString, expectedSuffix) {
 			t.Fatalf("process output does not end with %q at iteration %d, here are the last 20 characters of the output:\n\n %q", expectedSuffix, i, stdoutString[len(stdoutString)-20:])
 		}
@@ -2369,7 +2319,8 @@ func initContainerAndCheckChildrenDieOnKill(t *testing.T, opts ...oci.SpecOpts) 
 	}
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
-	task, err := container.NewTask(ctx, cio.NullIO)
+	stdout := bytes.NewBuffer(nil)
+	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2403,8 +2354,8 @@ func initContainerAndCheckChildrenDieOnKill(t *testing.T, opts ...oci.SpecOpts) 
 		t.Fatal(err)
 	}
 
-	// The container is using longCommand, which contains sleep inf on Linux, and ping -t localhost on Windows.
-	if strings.Contains(string(b), "sleep inf") || strings.Contains(string(b), "ping -t localhost") {
+	// The container is using longCommand, which contains sleep 1 on Linux, and ping -t localhost on Windows.
+	if strings.Contains(string(b), "sleep 1") || strings.Contains(string(b), "ping -t localhost") {
 		t.Fatalf("killing init didn't kill all its children:\n%v", string(b))
 	}
 
@@ -2713,7 +2664,7 @@ func TestContainerUsername(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	buf := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(buf)))
+	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(buf)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2765,7 +2716,7 @@ func TestContainerPTY(t *testing.T) {
 	defer container.Delete(ctx, WithSnapshotCleanup)
 
 	buf := bytes.NewBuffer(nil)
-	task, err := container.NewTask(ctx, cio.NewCreator(withStdout(buf), withProcessTTY()))
+	task, err := container.NewTask(ctx, cio.NewCreator(withByteBuffers(buf), withProcessTTY()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2786,23 +2737,8 @@ func TestContainerPTY(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tries := 1
-	if runtime.GOOS == "windows" {
-		// TODO: Fix flakiness on Window by checking for race in writing to buffer
-		tries += 2
-	}
-
-	for {
-		out := buf.String()
-		if strings.ContainsAny(fmt.Sprintf("%#q", out), `\x00`) {
-			break
-
-		}
-		tries--
-		if tries == 0 {
-			t.Fatal(`expected \x00 in output`)
-		}
-		t.Logf("output %#q does not contain \\x00, trying again", out)
-		time.Sleep(time.Millisecond)
+	out := buf.String()
+	if !strings.ContainsAny(fmt.Sprintf("%#q", out), `\x00`) {
+		t.Fatal(`expected \x00 in output`)
 	}
 }

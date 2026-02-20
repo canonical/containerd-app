@@ -29,9 +29,4 @@ const (
 	// DefaultSnapshotterNSLabel defines the namespace label to check for the
 	// default snapshotter
 	DefaultSnapshotterNSLabel = "containerd.io/defaults/snapshotter"
-	// DefaultSandboxerNSLabel defines the namespace label to check for the
-	// default sandboxcr
-	DefaultSandboxerNSLabel = "containerd.io/defaults/sandboxer"
-	// DefaultSandboxer defines the default sandboxer to use for creating sandboxes.
-	DefaultSandboxer = "shim"
 )

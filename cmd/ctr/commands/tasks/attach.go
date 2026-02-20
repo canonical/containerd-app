@@ -18,23 +18,23 @@ package tasks
 
 import (
 	"github.com/containerd/console"
-	"github.com/containerd/containerd/v2/cmd/ctr/commands"
-	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/log"
-	"github.com/urfave/cli/v2"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/cmd/ctr/commands"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
-var attachCommand = &cli.Command{
+var attachCommand = cli.Command{
 	Name:      "attach",
 	Usage:     "Attach to the IO of a running container",
 	ArgsUsage: "CONTAINER",
-	Action: func(cliContext *cli.Context) error {
-		client, ctx, cancel, err := commands.NewClient(cliContext)
+	Action: func(context *cli.Context) error {
+		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
 		defer cancel()
-		container, err := client.LoadContainer(ctx, cliContext.Args().First())
+		container, err := client.LoadContainer(ctx, context.Args().First())
 		if err != nil {
 			return err
 		}
@@ -66,7 +66,7 @@ var attachCommand = &cli.Command{
 
 		if tty {
 			if err := HandleConsoleResize(ctx, task, con); err != nil {
-				log.L.WithError(err).Error("console resize")
+				logrus.WithError(err).Error("console resize")
 			}
 		} else {
 			sigc := commands.ForwardAllSignals(ctx, task)
@@ -79,7 +79,7 @@ var attachCommand = &cli.Command{
 			return err
 		}
 		if code != 0 {
-			return cli.Exit("", int(code))
+			return cli.NewExitError("", int(code))
 		}
 		return nil
 	},
