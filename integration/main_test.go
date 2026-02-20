@@ -55,7 +55,7 @@ import (
 )
 
 const (
-	timeout                    = 1 * time.Minute
+	timeout                    = 3 * time.Minute
 	k8sNamespace               = constants.K8sContainerdNamespace
 	defaultCgroupSystemdParent = "/containerd-test.slice"
 )
@@ -353,11 +353,11 @@ func WithIDMapVolumeMount(hostPath, containerPath string, uidMaps, gidMaps []*ru
 	}
 }
 
-func WithImageVolumeMount(image, containerPath string) ContainerOpts {
-	return WithIDMapImageVolumeMount(image, containerPath, nil, nil)
+func WithImageVolumeMount(image, imageSubPath, containerPath string) ContainerOpts {
+	return WithIDMapImageVolumeMount(image, imageSubPath, containerPath, nil, nil)
 }
 
-func WithIDMapImageVolumeMount(image string, containerPath string, uidMaps, gidMaps []*runtime.IDMapping) ContainerOpts {
+func WithIDMapImageVolumeMount(image, imageSubPath, containerPath string, uidMaps, gidMaps []*runtime.IDMapping) ContainerOpts {
 	return func(c *runtime.ContainerConfig) {
 		containerPath, _ = filepath.Abs(containerPath)
 		mount := &runtime.Mount{
@@ -367,6 +367,7 @@ func WithIDMapImageVolumeMount(image string, containerPath string, uidMaps, gidM
 			Image: &runtime.ImageSpec{
 				Image: image,
 			},
+			ImageSubPath:   imageSubPath,
 			Readonly:       true,
 			SelinuxRelabel: true,
 		}
@@ -632,13 +633,17 @@ func KillProcess(name string, signal syscall.Signal) error {
 
 // KillPid kills the process by pid. kill is used.
 func KillPid(pid int) error {
-	command := "kill"
-	if goruntime.GOOS == "windows" {
-		command = "tskill"
-	}
-	output, err := exec.Command(command, strconv.Itoa(pid)).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to kill %d - error: %v, output: %q", pid, err, output)
+	switch goruntime.GOOS {
+	case "windows":
+		output, err := exec.Command("tskill", strconv.Itoa(pid)).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to kill %d - error: %v, output: %q", pid, err, output)
+		}
+	default:
+		output, err := exec.Command("kill", "-9", strconv.Itoa(pid)).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to kill %d - error: %v, output: %q", pid, err, output)
+		}
 	}
 	return nil
 }

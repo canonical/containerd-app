@@ -248,7 +248,7 @@ func writeBootstrapParams(path string, params client.BootstrapParams) error {
 		return err
 	}
 
-	f, err := atomicfile.New(path, 0o666)
+	f, err := atomicfile.New(path, 0o644)
 	if err != nil {
 		return err
 	}
@@ -305,8 +305,7 @@ func makeConnection(ctx context.Context, id string, params client.BootstrapParam
 	case "grpc":
 		gopts := []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),   //nolint:staticcheck // Ignore SA1019. Deprecation assumes use of [grpc.NewClient] but we are not using that here.
-			grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()), //nolint:staticcheck // Ignore SA1019. Deprecation assumes use of [grpc.NewClient] but we are not using that here.
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		}
 		return grpcDialContext(params.Address, onClose, gopts...)
 	default:
@@ -527,7 +526,7 @@ func (s *shimTask) delete(ctx context.Context, sandboxed bool, removeTask func(c
 		ID: s.ID(),
 	})
 	if shimErr != nil {
-		log.G(ctx).WithField("id", s.ID()).WithError(shimErr).Debug("failed to delete task")
+		log.G(ctx).WithField("id", s.ID()).WithError(shimErr).Error("failed to delete task")
 		if !errors.Is(shimErr, ttrpc.ErrClosed) {
 			shimErr = errgrpc.ToNative(shimErr)
 			if !errdefs.IsNotFound(shimErr) {

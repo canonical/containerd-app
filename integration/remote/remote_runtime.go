@@ -42,11 +42,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
-	utilexec "k8s.io/utils/exec"
 
 	internalapi "github.com/containerd/containerd/v2/integration/cri-api/pkg/apis"
 	"github.com/containerd/containerd/v2/integration/remote/logreduction"
 	"github.com/containerd/containerd/v2/integration/remote/util"
+	executil "github.com/containerd/containerd/v2/internal/cri/executil"
 	"github.com/containerd/log"
 )
 
@@ -106,7 +106,7 @@ func (r *RuntimeService) Version(apiVersion string, opts ...grpc.CallOption) (*r
 	log.L.Infof("[RuntimeService] Version Response (typedVersion=%v)", typedVersion)
 
 	if typedVersion.Version == "" || typedVersion.RuntimeName == "" || typedVersion.RuntimeApiVersion == "" || typedVersion.RuntimeVersion == "" {
-		return nil, fmt.Errorf("not all fields are set in VersionResponse (%q)", *typedVersion)
+		return nil, fmt.Errorf("not all fields are set in VersionResponse (%q)", typedVersion)
 	}
 
 	return typedVersion, err
@@ -413,7 +413,7 @@ func (r *RuntimeService) ExecSync(containerID string, cmd []string, timeout time
 	log.L.Infof("[RuntimeService] ExecSync Response (containerID=%v, ExitCode=%v)", containerID, resp.ExitCode)
 	err = nil
 	if resp.ExitCode != 0 {
-		err = utilexec.CodeExitError{
+		err = executil.CodeExitError{
 			Err:  fmt.Errorf("command '%s' exited with %d: %s", strings.Join(cmd, " "), resp.ExitCode, resp.Stderr),
 			Code: int(resp.ExitCode),
 		}

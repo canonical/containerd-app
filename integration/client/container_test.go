@@ -364,6 +364,67 @@ func withStdout(stdout io.Writer) cio.Opt {
 	}
 }
 
+func TestContainerWait(t *testing.T) {
+	t.Parallel()
+
+	client, err := newClient(t, address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	var (
+		image       Image
+		ctx, cancel = testContext(t)
+		id          = t.Name()
+	)
+	defer cancel()
+
+	image, err = client.GetImage(ctx, testImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	container, err := client.NewContainer(ctx, id, WithNewSnapshot(id, image), WithNewSpec(oci.WithImageConfig(image), longCommand))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer container.Delete(ctx)
+
+	task, err := container.NewTask(ctx, empty())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer task.Delete(ctx)
+
+	ctx2, cancle2 := context.WithCancel(ctx)
+	cancle2()
+	statusErrC, _ := task.Wait(ctx2)
+	s := <-statusErrC
+	require.Error(t, s.Error(), "expected wait error, but got nil")
+
+	statusC, err := task.Wait(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := task.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-statusC
+
+	err = task.Kill(ctx, syscall.SIGTERM)
+	if err == nil {
+		t.Fatal("second call to kill should return an error")
+	}
+	if !errdefs.IsNotFound(err) {
+		t.Errorf("expected error %q but received %q", errdefs.ErrNotFound, err)
+	}
+}
+
 func TestContainerExec(t *testing.T) {
 	t.Parallel()
 
@@ -1925,6 +1986,9 @@ func TestContainerExecLargeOutputWithTTY(t *testing.T) {
 
 		const expectedSuffix = "999999 1000000"
 		stdoutString := stdout.String()
+		if len(stdoutString) == 0 {
+			t.Fatal(fmt.Errorf("len (stdoutString) is 0"))
+		}
 		if !strings.Contains(stdoutString, expectedSuffix) {
 			t.Fatalf("process output does not end with %q at iteration %d, here are the last 20 characters of the output:\n\n %q", expectedSuffix, i, stdoutString[len(stdoutString)-20:])
 		}
@@ -2339,8 +2403,8 @@ func initContainerAndCheckChildrenDieOnKill(t *testing.T, opts ...oci.SpecOpts) 
 		t.Fatal(err)
 	}
 
-	// The container is using longCommand, which contains sleep 1 on Linux, and ping -t localhost on Windows.
-	if strings.Contains(string(b), "sleep 1") || strings.Contains(string(b), "ping -t localhost") {
+	// The container is using longCommand, which contains sleep inf on Linux, and ping -t localhost on Windows.
+	if strings.Contains(string(b), "sleep inf") || strings.Contains(string(b), "ping -t localhost") {
 		t.Fatalf("killing init didn't kill all its children:\n%v", string(b))
 	}
 

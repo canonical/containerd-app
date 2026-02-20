@@ -25,14 +25,14 @@ import (
 	"github.com/containerd/typeurl/v2"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/containerd/errdefs"
+
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/leases"
 	"github.com/containerd/containerd/v2/core/transfer"
 	"github.com/containerd/containerd/v2/core/unpack"
-	"github.com/containerd/containerd/v2/internal/kmutex"
 	"github.com/containerd/containerd/v2/pkg/imageverifier"
-	"github.com/containerd/errdefs"
 )
 
 type localTransferService struct {
@@ -42,6 +42,8 @@ type localTransferService struct {
 	limiterU *semaphore.Weighted
 	// limiter for download operation
 	limiterD *semaphore.Weighted
+	// limiter for unpack operation
+	limiterP *semaphore.Weighted
 	config   TransferConfig
 }
 
@@ -56,6 +58,9 @@ func NewTransferService(cs content.Store, is images.Store, tc TransferConfig) tr
 	}
 	if tc.MaxConcurrentDownloads > 0 {
 		ts.limiterD = semaphore.NewWeighted(int64(tc.MaxConcurrentDownloads))
+	}
+	if tc.MaxConcurrentUnpacks > 1 {
+		ts.limiterP = semaphore.NewWeighted(int64(tc.MaxConcurrentUnpacks))
 	}
 	return ts
 }
@@ -181,10 +186,13 @@ type TransferConfig struct {
 	// MaxConcurrentUploadedLayers is the max concurrent uploads for push
 	MaxConcurrentUploadedLayers int
 
+	// MaxConcurrentUnpacks controls the number of concurrent unpacks
+	MaxConcurrentUnpacks int
+
 	// DuplicationSuppressor is used to make sure that there is only one
 	// in-flight fetch request or unpack handler for a given descriptor's
 	// digest or chain ID.
-	DuplicationSuppressor kmutex.KeyedLocker
+	DuplicationSuppressor unpack.KeyedLocker
 
 	// BaseHandlers are a set of handlers which get are called on dispatch.
 	// These handlers always get called before any operation specific
