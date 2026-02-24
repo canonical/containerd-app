@@ -15,10 +15,6 @@ Files: debian/*
 Copyright: 2016 Tianon Gravi <tianon@debian.org>
 License: Apache-2.0
 
-Files: protobuf/plugin/fieldpath.proto
-Copyright: 2013 The GoGo Authors.
-License: BSD-2-clause
-
 Files: vendor/go.opencensus.io/*
 Copyright: 2017-2019 OpenCensus Authors
 License: Apache-2.0
@@ -40,6 +36,11 @@ Files: vendor/gopkg.in/yaml.v2/*
 Copyright: 2011-2016 Canonical Ltd.
 License: Apache-2.0
 
+Files: vendor/dario.cat/mergo/*
+Copyright: 2013, Dario Castañé
+           2012, The Go Authors
+License: BSD-3-clause
+
 Files: vendor/gopkg.in/yaml.v2/apic.go
        vendor/gopkg.in/yaml.v2/emitterc.go
        vendor/gopkg.in/yaml.v2/parserc.go
@@ -59,6 +60,10 @@ Files: vendor/sigs.k8s.io/yaml/*
 Copyright: 2014 Sam Ghods
            2013 The Go Authors.
 License: Expat and BSD-3-clause-Google
+
+Files: vendor/sigs.k8s.io/json/*
+Copyright: 2009, The Go Authors
+License: Apache-2.0 or BSD-3-clause
 
 Files: vendor/github.com/Microsoft/*
 Copyright: 2015-2018 Microsoft Corp.
@@ -123,18 +128,9 @@ Files: vendor/github.com/google/uuid/*
 Copyright: 2009-2018 Google Inc.
 License: BSD-3-clause-Google
 
-Files: vendor/github.com/grpc-ecosystem/go-grpc-prometheus/*
-Copyright: 2016 Michal Witkowski.
+Files: vendor/github.com/grpc-ecosystem/*
+Copyright: 2016, Michal Witkowski
 License: Apache-2.0
-
-Files: vendor/github.com/hashicorp/*
-Copyright: Hashicorp
-License: MPL-2.0
-
-Files: vendor/github.com/imdario/mergo/*
-Copyright: 2013-2014 Dario Castañé
-           2012      The Go Authors
-License: BSD-3-clause-Google
 
 Files: vendor/github.com/json-iterator/go/*
 Copyright: 2016 json-iterator
@@ -148,21 +144,10 @@ Files: vendor/github.com/mistifyio/go-zfs/*
 Copyright: 2014 OmniTI Computer Consulting, Inc.
 License: Apache-2.0
 
-Files: vendor/github.com/opencontainers/go-digest/*
-Copyright: 2019-2020 OCI Contributors
-           2016-2017 Docker, Inc.
-License: Apache-2.0
-
-Files: vendor/github.com/opencontainers/image-spec/*
-Copyright: 2004-2016 The Linux Foundation and its contributors.
-License: Apache-2.0
-
-Files: vendor/github.com/opencontainers/runc/*
-Copyright: 2012-2015 Docker, Inc.
-License: Apache-2.0
-
-Files: vendor/github.com/opencontainers/runtime-spec/*
-Copyright: 2015 The Linux Foundation.
+Files: vendor/github.com/opencontainers/*
+Copyright: 2016-2017, Docker, Inc
+           2019-2020, OCI Contributors
+           2004-2006, The Linux Foundation and its contributors
 License: Apache-2.0
 
 Files: vendor/github.com/pkg/errors/*
@@ -201,11 +186,6 @@ Files: vendor/golang.org/x/*
 Copyright: 2009-2020 The Go Authors.
 License: BSD-3-clause-Google
 
-Files: vendor/gopkg.in/square/go-jose.v2/*
-Copyright: 2014-2018 Square Inc.
-           2010-2011 The Go Authors.
-License: Apache-2.0
-
 Files: vendor/k8s.io/*
 Copyright: 2014-2020 The Kubernetes Authors.
 License: Apache-2.0
@@ -239,6 +219,158 @@ License: BSD-2-clause
 Files: vendor/github.com/russross/blackfriday/*
 Copyright: 2011 Russ Ross <russ@russross.com>
 License: BSD-2-clause
+
+Files: vendor/go.opentelemetry.io/*
+Copyright: The OpenTelemetry Authors
+License: Apache-2.0
+
+Files: vendor/github.com/containerd/*
+Copyright: The containerd Authors
+License: Apache-2.0
+
+Files: vendor/github.com/containerd/continuity/*
+Copyright: 2013-2018, Docker, Inc
+           The containerd Authors
+License: Apache-2.0
+
+Files: vendor/github.com/moby/*
+Copyright: 2014-2021, Docker, Inc
+License: Apache-2.0
+
+Files: vendor/github.com/moby/sys/symlink/*
+Copyright: 2014-2018, Docker, Inc
+License: Apache-2.0 or BSD-3-clause
+
+Files: vendor/github.com/moby/sys/symlink/fs.go
+Copyright: 2012, The Go Authors
+License: BSD-3-clause
+
+Files: vendor/github.com/moby/spdystream/*
+Copyright: 2014-2021, Docker Inc
+License: Apache-2.0
+
+Files: vendor/github.com/moby/spdystream/spdy/*
+Copyright: 2014-2021, Docker Inc
+           2011-2013, The Go Authors
+License: Apache-2.0 or BSD-3-clause
+
+Files: vendor/google.golang.org/genproto/*
+Copyright: 2022, Google LLC
+License: Apache-2.0
+
+Files: vendor/google.golang.org/protobuf/*
+Copyright: 2018-2024, The Go Authors
+License: BSD-3-clause-Google
+
+Files: vendor/tags.cncf.io/*
+Copyright: 2021-2024, The CDI Authors
+           2014, The Kubernetes Authors
+License: Apache-2.0
+
+Files: vendor/github.com/blang/*
+Copyright: 2014, Benedikt Lang <github@benediktlang.de>
+License: Expat
+
+Files: vendor/github.com/grpc-ecosystem/grpc-gateway/*
+Copyright: 2016, Michal Witkowski
+License: BSD-3-clause
+
+Files: vendor/github.com/grpc-ecosystem/grpc-gateway/v2/runtime/pattern.go
+Copyright: 2009, The Go Authors
+License: BSD-3-clause
+
+Files: vendor/github.com/AdaLogics/*
+Copyright: 2023, The go-fuzz-headers Authors
+License: Apache-2.0
+
+Files: vendor/github.com/vishvananda/*
+Copyright: 2014, Docker, Inc
+           2014, Vishvananda Ishaya
+License: Apache-2.0
+
+Files: vendor/github.com/cenkalti/backoff/*
+Copyright: 2014, Cenk Altı
+License: Expat
+
+Files: vendor/github.com/cyphar/*
+Copyright: 2024-2025, Aleksa Sarai <cyphar@cyphar.com>
+           2024-2025, SUSE LLC
+License: MPL-2.0
+
+Files: vendor/github.com/distribution/*
+Copyright: 2004-2006, The Linux Foundation and its contributors
+License: Apache-2.0
+
+Files: vendor/github.com/felixge/httpsnoop/*
+Copyright: 2016, Felix Geisendörfer <felix@debuggable.com>
+License: Expat
+
+Files: vendor/github.com/go-jose/*
+Copyright: 2014-2018, Square Inc
+License: Apache-2.0
+
+Files: vendor/gopkg.in/yaml.v3/*
+Copyright: 2011-2019, Canonical Ltd
+           2006-2010, Kirill Simonov
+License: Expat
+
+Files: vendor/go.mozilla.org/pkcs7/*
+Copyright: 2015, Andrew Smith
+License: Expat
+
+Files: vendor/github.com/stretchr/testify/*
+Copyright: 2012-2020, Mat Ryer, Tyler Bunnell
+License: Expat
+
+Files: vendor/github.com/stefanberger/*
+Copyright: 2020, IBM Corporation
+License: Apache-2.0
+
+Files: vendor/github.com/spf13/pflag/*
+Copyright: 2012, Alex Ogier
+           2012, The Go Authors
+License: BSD-3-clause
+
+Files: vendor/github.com/pmezard/*
+Copyright: 2013, Patrick Mezard
+License: BSD-3-clause
+
+Files: vendor/github.com/pelletier/go-toml/*
+Copyright: 2013-2021, Thomas Pelletier, Eric Anderton
+License: Apache-2.0 or Expat
+
+Files: vendor/github.com/pelletier/go-toml/localtime.go
+Copyright: 2016, Google LLC
+License: Apache-2.0
+
+Files: vendor/github.com/miekg/pkcs11/*
+Copyright: 2013, Miek Gieben
+License: BSD-3-clause
+
+Files: vendor/github.com/klauspost/*
+Copyright: 2019-2020, + Klaus Post
+           2016, Caleb Spare
+License: Apache-2.0 or BSD-3-clause or Expat
+
+Files: vendor/github.com/intel/*
+Copyright: 2019-2023, Intel Corporation
+License: Apache-2.0
+
+Files: vendor/github.com/golang/groupcache/*
+Copyright: 2013, Google Inc
+License: Apache-2.0
+
+Files: vendor/github.com/go-logr/stdr/*
+Copyright: 2019, The logr Authors
+License: Apache-2.0
+
+Files: vendor/github.com/modern-go/*
+Copyright: 2018, Tao Wen <taowen@gmail.com>
+License: Apache-2.0
+
+Files: vendor/github.com/AdamKorcz/*
+Copyright: 2022, Adam Korcz <adam@adalogics.com>
+License: Apache-2.0
 
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -1130,3 +1262,26 @@ License: MPL-2.0
  .
    This Source Code Form is "Incompatible With Secondary Licenses", as
    defined by the Mozilla Public License, v. 2.0.
+
+License: BSD-3-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+     * Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+     * Neither the name of the <organization> nor the
+       names of its contributors may be used to endorse or promote products
+       derived from this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
