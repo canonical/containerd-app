@@ -1,3 +1,15 @@
+containerd-app (1.7.30-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * New upstream version 1.7.30
+  * d/p/0001-Skip-test-failing-on-riscv64.patch: refresh patch
+  * d/p/CVE-2024-25621.patch: drop patch applied upstream
+  * d/p/CVE-2025-64329.patch: drop patch applied upstream
+  * d/control: build with golang 1.24
+  * d/rules: add golang 1.24 to PATH
+  * d/copyright: update copyright data
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Fri, 20 Feb 2026 18:01:16 -0300
+
 containerd-app (1.7.28-0ubuntu1~24.04.2) noble-security; urgency=medium
 
   * SECURITY UPDATE: local priv escalation vulnerability
