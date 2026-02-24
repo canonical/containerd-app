@@ -29,7 +29,7 @@
 #   docker run --privileged containerd-test
 # ------------------------------------------------------------------------------
 
-ARG GOLANG_VERSION=1.23.11
+ARG GOLANG_VERSION=1.24.11
 ARG GOLANG_IMAGE=golang
 
 FROM ${GOLANG_IMAGE}:${GOLANG_VERSION} AS golang
@@ -58,7 +58,7 @@ WORKDIR /go/src/github.com/containerd/containerd
 
 FROM golang AS cni
 ENV DESTDIR=/build
-COPY script/setup/install-cni go.mod /
+COPY script/setup/install-cni script/setup/cni-plugins-version /
 RUN DESTDIR=/build /install-cni
 
 FROM golang AS critools
