@@ -1,3 +1,13 @@
+containerd-app (1.7.30-0ubuntu1~22.04.1) jammy; urgency=medium
+
+  * New upstream version 1.7.30
+  * d/p/0001-Skip-test-failing-on-riscv64.patch: refresh patch
+  * d/control: build with golang 1.24
+  * d/rules: add golang 1.24 to PATH
+  * d/copyright: update copyright data
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Tue, 24 Feb 2026 17:56:02 -0300
+
 containerd-app (1.7.28-0ubuntu1~22.04.1) jammy; urgency=medium
 
   * New upstream version 1.7.28 (LP: #2112523)
