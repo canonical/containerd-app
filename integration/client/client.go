@@ -23,8 +23,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/v2/defaults"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/log/logtest"
 )
 
@@ -32,10 +32,11 @@ const (
 	testNamespace = "testing"
 )
 
+//nolint:unused // some variables used in fuzz but not all platforms
 var (
 	address           string
 	ctrdStdioFilePath string
-	testSnapshotter   = containerd.DefaultSnapshotter
+	testSnapshotter   = defaults.DefaultSnapshotter
 	ctrd              = &daemon{}
 )
 
@@ -44,7 +45,8 @@ func init() {
 }
 
 func testContext(t testing.TB) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
+	// This needs work to convert from context.Background() to t.Context().
+	ctx, cancel := context.WithCancel(context.Background())  //nolint:all
 	ctx = namespaces.WithNamespace(ctx, testNamespace)
 	if t != nil {
 		ctx = logtest.WithT(ctx, t)

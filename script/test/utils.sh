@@ -53,6 +53,20 @@ version=2
 [plugins."io.containerd.grpc.v1.cri"]
   drain_exec_sync_io_timeout = "10s"
 EOF
+  if command -v sestatus >/dev/null 2>&1; then
+    cat >>${config_file} <<EOF
+  enable_selinux = true
+EOF
+  fi
+
+  cat >>${config_file} <<EOF
+# Userns requires idmap mount support for overlayfs (added in 5.19)
+# Let's opt-in for a recursive chown, so we can always test this even in old distros.
+# Note that if idmap mounts support is present, we will use that, so it is harmless to keep this
+# here.
+[plugins."io.containerd.snapshotter.v1.overlayfs"]
+    slow_chown = true
+EOF
 
   if command -v sestatus >/dev/null 2>&1; then
     cat >>${config_file} <<EOF
@@ -66,17 +80,11 @@ runtime_type = "${CONTAINERD_RUNTIME}"
 EOF
   fi
   if [ $IS_WINDOWS -eq 0 ]; then
-    NRI_CONFIG_DIR="${CONTAINERD_CONFIG_DIR}/nri"
     cat >>${config_file} <<EOF
 [plugins."io.containerd.nri.v1.nri"]
   disable = false
-  config_file = "${NRI_CONFIG_DIR}/nri.conf"
   socket_path = "/var/run/nri-test.sock"
   plugin_path = "/no/pre-launched/nri/plugins"
-EOF
-    mkdir -p "${NRI_CONFIG_DIR}"
-    cat >"${NRI_CONFIG_DIR}/nri.conf" <<EOF
-disableConnections: false
 EOF
   fi
   CONTAINERD_CONFIG_FILE="${config_file}"
@@ -152,6 +160,15 @@ version = 2
           SandboxIsolation = 1
 EOF
 fi
+# To allow the cri-integration test to run via CLI without explicitly setting CGROUP_DRIVER
+if [ $IS_WINDOWS -eq 0 ] && [ ! -v CGROUP_DRIVER ]; then
+  echo "CGROUP_DRIVER is unset"
+elif [ "$CGROUP_DRIVER" = "systemd" ]; then
+  cat >> ${CONTAINERD_CONFIG_FILE} << EOF
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+   SystemdCgroup = true
+EOF
+fi
 
 # CONTAINERD_TEST_SUFFIX is the suffix appended to the root/state directory used
 # by test containerd.
@@ -215,10 +232,6 @@ run_containerd() {
   CMD=""
   if [ -n "${sudo}" ]; then
     CMD+="${sudo} "
-    # sudo strips environment variables, so add ENABLE_CRI_SANDBOXES back if present
-    if [ -n  "${ENABLE_CRI_SANDBOXES}" ]; then
-      CMD+="ENABLE_CRI_SANDBOXES='${ENABLE_CRI_SANDBOXES}' "
-    fi
   fi
   CMD+="${PWD}/bin/containerd"
 
@@ -345,4 +358,8 @@ readiness_check() {
       echo "$attempt_num attempt \"$command\"! Trying again in $attempt_num seconds..."
       sleep $(( attempt_num++ ))
   done
+  set -x
+  cat "${report_dir}/containerd.log"
+  cat "${CONTAINERD_CONFIG_FILE}"
+  set +x
 }

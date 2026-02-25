@@ -24,7 +24,7 @@ import (
 	"time"
 
 	v1 "github.com/containerd/containerd/api/services/ttrpc/events/v1"
-	"github.com/containerd/containerd/pkg/dialer"
+	"github.com/containerd/containerd/v2/pkg/dialer"
 	"github.com/containerd/ttrpc"
 )
 
