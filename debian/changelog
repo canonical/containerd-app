@@ -1,3 +1,14 @@
+containerd-app (2.2.1-0ubuntu1~24.04.1) noble; urgency=medium
+
+  * New upstream version 2.2.1
+  * d/containerd.docs: update notice file
+  * d/copyright: update copyright data
+  * d/rules: fix path of containerd commands
+  * d/p/0001-Skip-test-failing-on-riscv64.patch: refresh patch
+  * d/p/0002-Skip-tests-*-privileg.patch: refresh patch
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Wed, 25 Feb 2026 08:33:14 -0300
+
 containerd-app (1.7.30-0ubuntu1~24.04.1) noble; urgency=medium
 
   * New upstream version 1.7.30
