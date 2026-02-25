@@ -1,6 +1,6 @@
 containerd-app (2.2.1-0ubuntu1~24.04.1) noble; urgency=medium
 
-  * New upstream version 2.2.1
+  * New upstream version 2.2.1 (LP: #2127661)
   * d/containerd.docs: update notice file
   * d/copyright: update copyright data
   * d/rules: fix path of containerd commands
