@@ -20,17 +20,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/containerd/containerd/cmd/ctr/app"
-	"github.com/containerd/containerd/pkg/seed" //nolint:staticcheck // Global math/rand seed is deprecated, but still used by external dependencies
-	"github.com/urfave/cli"
+	"github.com/containerd/containerd/v2/cmd/ctr/app"
+	"github.com/urfave/cli/v2"
 )
 
-var pluginCmds = []cli.Command{}
-
-func init() {
-	//nolint:staticcheck // Global math/rand seed is deprecated, but still used by external dependencies
-	seed.WithTimeAndRand()
-}
+var pluginCmds = []*cli.Command{}
 
 func main() {
 	app := app.New()

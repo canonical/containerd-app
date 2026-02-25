@@ -11,15 +11,16 @@ Generic:
 - `native`: Native file copying driver. Akin to Docker/Moby's "vfs" driver.
 
 Block-based:
-- `blockfile`: A driver using raw block files for each snapshot. Block files are copied from a parent or base empty block file. Mounting requires a virtual machine or support for loopback mounts.
+- [`blockfile`](./blockfile.md): A driver using raw block files for each snapshot. Block files are copied from a parent or base empty block file. Mounting requires a virtual machine or support for loopback mounts.
 - `devmapper`: ext4/xfs device mapper. See [`devmapper.md`](./devmapper.md).
 
 Filesystem-specific:
 - `btrfs`: btrfs. Needs the plugin root (`/var/lib/containerd/io.containerd.snapshotter.v1.btrfs`) to be mounted as btrfs.
 - `zfs`: ZFS. Needs the plugin root (`/var/lib/containerd/io.containerd.snapshotter.v1.zfs`) to be mounted as ZFS. See also https://github.com/containerd/zfs .
+- `erofs`: EROFS. `OverlayFS` kernel module needs to be enabled for active snapshots. See also [`erofs.md`](./erofs.md).
 
 [Deprecated](https://github.com/containerd/containerd/blob/main/RELEASES.md#deprecated-features):
-- `aufs`: AUFS. Deprecated since containerd 1.5. Planned to be removed in containerd 2.0. See also https://github.com/containerd/aufs .
+- `aufs`: AUFS. Deprecated since containerd 1.5. Removed in containerd 2.0. See also https://github.com/containerd/aufs .
 
 ## Non-core snapshotter plugins
 

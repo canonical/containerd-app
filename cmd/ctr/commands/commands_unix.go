@@ -19,28 +19,81 @@
 package commands
 
 import (
-	"github.com/urfave/cli"
+	"errors"
+
+	"github.com/containerd/containerd/api/types/runc/options"
+	runtimeoptions "github.com/containerd/containerd/api/types/runtimeoptions/v1"
+	"github.com/urfave/cli/v2"
 )
 
 func init() {
-	ContainerFlags = append(ContainerFlags, cli.BoolFlag{
+	RuntimeFlags = append(RuntimeFlags, &cli.StringFlag{
+		Name:  "runc-binary",
+		Usage: "Specify runc-compatible binary",
+	}, &cli.StringFlag{
+		Name:  "runc-root",
+		Usage: "Specify runc-compatible root",
+	}, &cli.BoolFlag{
+		Name:  "runc-systemd-cgroup",
+		Usage: "Start runc with systemd cgroup manager",
+	})
+	ContainerFlags = append(ContainerFlags, &cli.BoolFlag{
 		Name:  "rootfs",
 		Usage: "Use custom rootfs that is not managed by containerd snapshotter",
-	}, cli.BoolFlag{
+	}, &cli.BoolFlag{
 		Name:  "no-pivot",
 		Usage: "Disable use of pivot-root (linux only)",
-	}, cli.Int64Flag{
+	}, &cli.Int64Flag{
 		Name:  "cpu-quota",
 		Usage: "Limit CPU CFS quota",
 		Value: -1,
-	}, cli.Uint64Flag{
+	}, &cli.Uint64Flag{
 		Name:  "cpu-period",
 		Usage: "Limit CPU CFS period",
-	}, cli.StringFlag{
+	}, &cli.StringFlag{
 		Name:  "rootfs-propagation",
 		Usage: "Set the propagation of the container rootfs",
-	}, cli.StringSliceFlag{
+	}, &cli.StringSliceFlag{
 		Name:  "device",
 		Usage: "File path to a device to add to the container; or a path to a directory tree of devices to add to the container",
 	})
+}
+
+func getRuncOptions(cliContext *cli.Context) (*options.Options, error) {
+	runtimeOpts := &options.Options{}
+	if runcBinary := cliContext.String("runc-binary"); runcBinary != "" {
+		runtimeOpts.BinaryName = runcBinary
+	}
+	if cliContext.Bool("runc-systemd-cgroup") {
+		if cliContext.String("cgroup") == "" {
+			// runc maps "machine.slice:foo:deadbeef" to "/machine.slice/foo-deadbeef.scope"
+			return nil, errors.New("option --runc-systemd-cgroup requires --cgroup to be set, e.g. \"machine.slice:foo:deadbeef\"")
+		}
+		runtimeOpts.SystemdCgroup = true
+	}
+	if root := cliContext.String("runc-root"); root != "" {
+		runtimeOpts.Root = root
+	}
+
+	return runtimeOpts, nil
+}
+
+func RuntimeOptions(cliContext *cli.Context) (interface{}, error) {
+	// validate first
+	if (cliContext.String("runc-binary") != "" || cliContext.Bool("runc-systemd-cgroup")) &&
+		cliContext.String("runtime") != "io.containerd.runc.v2" {
+		return nil, errors.New("specifying runc-binary and runc-systemd-cgroup is only supported for \"io.containerd.runc.v2\" runtime")
+	}
+
+	if cliContext.String("runtime") == "io.containerd.runc.v2" {
+		return getRuncOptions(cliContext)
+	}
+
+	if configPath := cliContext.String("runtime-config-path"); configPath != "" {
+		return &runtimeoptions.Options{
+			ConfigPath: configPath,
+		}, nil
+	}
+
+	return nil, nil
 }

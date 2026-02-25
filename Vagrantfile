@@ -193,7 +193,7 @@ EOF
         source /etc/profile.d/sh.local
         set -eux -o pipefail
         cd ${GOPATH}/src/github.com/containerd/containerd
-        make BUILDTAGS="seccomp selinux no_aufs no_btrfs no_devmapper no_zfs" binaries install
+        make BUILDTAGS="seccomp selinux no_btrfs no_devmapper no_zfs" binaries install
         type containerd
         containerd --version
         chcon -v -t container_runtime_exec_t /usr/local/bin/{containerd,containerd-shim*}
@@ -249,7 +249,6 @@ EOF
     sh.upload_path = "/tmp/test-integration"
     sh.env = {
         'RUNC_FLAVOR': ENV['RUNC_FLAVOR'] || "runc",
-        'RUNC_RUNTIME': ENV['RUNC_RUNTIME'] || "io.containerd.runc.v2",
         'GOTEST': ENV['GOTEST'] || "go test",
         'GOTESTSUM_JUNITFILE': ENV['GOTESTSUM_JUNITFILE'],
         'GOTESTSUM_JSONFILE': ENV['GOTESTSUM_JSONFILE'],
@@ -261,8 +260,8 @@ EOF
         set -eux -o pipefail
         rm -rf /var/lib/containerd-test /run/containerd-test
         cd ${GOPATH}/src/github.com/containerd/containerd
-        go test -v -count=1 -race ./metrics/cgroups
-        make integration EXTRA_TESTFLAGS="-timeout 15m -no-criu -test.v" TEST_RUNTIME=$RUNC_RUNTIME RUNC_FLAVOR=$RUNC_FLAVOR
+        go test -v -count=1 -race ./core/metrics/cgroups
+        make integration EXTRA_TESTFLAGS="-timeout 15m -no-criu -test.v" TEST_RUNTIME=io.containerd.runc.v2 RUNC_FLAVOR=$RUNC_FLAVOR
     SHELL
   end
 
@@ -273,11 +272,10 @@ EOF
     sh.upload_path = "/tmp/test-cri-integration"
     sh.env = {
         'GOTEST': ENV['GOTEST'] || "go test",
-        'RUNC_RUNTIME': ENV['RUNC_RUNTIME'] || "io.containerd.runc.v2",
         'GOTESTSUM_JUNITFILE': ENV['GOTESTSUM_JUNITFILE'],
         'GOTESTSUM_JSONFILE': ENV['GOTESTSUM_JSONFILE'],
         'GITHUB_WORKSPACE': '',
-        'ENABLE_CRI_SANDBOXES': ENV['ENABLE_CRI_SANDBOXES'],
+        'CGROUP_DRIVER': ENV['CGROUP_DRIVER'],
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
@@ -290,9 +288,9 @@ EOF
         cleanup
         cd ${GOPATH}/src/github.com/containerd/containerd
         # cri-integration.sh executes containerd from ./bin, not from $PATH .
-        make BUILDTAGS="seccomp selinux no_aufs no_btrfs no_devmapper no_zfs" binaries bin/cri-integration.test
+        make BUILDTAGS="seccomp selinux no_btrfs no_devmapper no_zfs" binaries bin/cri-integration.test
         chcon -v -t container_runtime_exec_t ./bin/{containerd,containerd-shim*}
-        CONTAINERD_RUNTIME=$RUNC_RUNTIME ./script/test/cri-integration.sh
+        CONTAINERD_RUNTIME=io.containerd.runc.v2 ./script/test/cri-integration.sh
         cleanup
     SHELL
   end
@@ -305,6 +303,7 @@ EOF
     sh.env = {
         'GOTEST': ENV['GOTEST'] || "go test",
         'REPORT_DIR': ENV['REPORT_DIR'],
+        'CGROUP_DRIVER': ENV['CGROUP_DRIVER'],
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
