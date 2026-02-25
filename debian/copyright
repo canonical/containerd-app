@@ -444,6 +444,10 @@ Files: vendor/github.com/xrash/smetrics/*
 Copyright: 2016, Felipe da Cunha Gonçalves
 License: Expat
 
+Files: vendor/github.com/intel/*
+Copyright: 2019-2023, Intel Corporation
+License: Apache-2
+
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
