@@ -17,6 +17,8 @@ import (
 )
 
 // Writer writes a compact ext4 file system.
+//
+// It expects all paths to use directory separator '/', even on Windows.
 type Writer struct {
 	f                    io.ReadWriteSeeker
 	bw                   *bufio.Writer
@@ -536,6 +538,7 @@ func (w *Writer) lookup(name string, mustExist bool) (*inode, *inode, string, er
 // with the same permissions as that of it's parent directory. It is expected that the a
 // call to make these parent directories will be made at a later point with the correct
 // permissions, at that time the permissions of these directories will be updated.
+// We treat Atime, Mtime, Ctime, and Crtime in the same way.
 func (w *Writer) MakeParents(name string) error {
 	if err := w.finishInode(); err != nil {
 		return err
@@ -554,10 +557,10 @@ func (w *Writer) MakeParents(name string) error {
 		if _, ok := root.Children[dirname]; !ok {
 			f := &File{
 				Mode:     root.Mode,
-				Atime:    time.Now(),
-				Mtime:    time.Now(),
-				Ctime:    time.Now(),
-				Crtime:   time.Now(),
+				Atime:    fsTimeToTime(root.Atime),
+				Mtime:    fsTimeToTime(root.Mtime),
+				Ctime:    fsTimeToTime(root.Ctime),
+				Crtime:   fsTimeToTime(root.Crtime),
 				Size:     0,
 				Uid:      root.Uid,
 				Gid:      root.Gid,
@@ -602,7 +605,7 @@ func (w *Writer) Create(name string, f *File) error {
 	}
 	child, err := w.makeInode(f, reuse)
 	if err != nil {
-		return fmt.Errorf("%s: %s", name, err)
+		return fmt.Errorf("%s: %w", name, err)
 	}
 	if existing != child {
 		if existing != nil {
@@ -1102,7 +1105,7 @@ func (w *Writer) writeInodeTable(tableSize uint32) error {
 }
 
 // NewWriter returns a Writer that writes an ext4 file system to the provided
-// WriteSeeker.
+// ReadWriteSeeker.
 func NewWriter(f io.ReadWriteSeeker, opts ...Option) *Writer {
 	w := &Writer{
 		f:           f,

@@ -59,29 +59,29 @@ command. With the load command you inject a container image into the container
 runtime from a file. First you need to create a container image tarball. For
 example to create an image tarball for a pause container using Docker:
 ```console
-$ docker pull registry.k8s.io/pause:3.7
-  3.7: Pulling from pause
-  7582c2cc65ef: Pull complete
-  Digest: sha256:bb6ed397957e9ca7c65ada0db5c5d1c707c9c8afc80a94acbe69f3ae76988f0c
-  Status: Downloaded newer image for registry.k8s.io/pause:3.7
-  registry.k8s.io/pause:3.7
-$ docker save registry.k8s.io/pause:3.7 -o pause.tar
+$ docker pull registry.k8s.io/pause:3.10.1
+  3.10.1: Pulling from pause
+  19e4906e80f6: Pull complete
+  Digest: sha256:278fb9dbcca9518083ad1e11276933a2e96f23de604a3a08cc3c80002767d24c
+  Status: Downloaded newer image for registry.k8s.io/pause:3.10.1
+  registry.k8s.io/pause:3.10.1
+$ docker save registry.k8s.io/pause:3.10.1 -o pause.tar
 ```
 Then use `ctr` to load the container image into the container runtime:
 ```console
 # The cri plugin uses the "k8s.io" containerd namespace.
 $ sudo ctr -n=k8s.io images import pause.tar
-  Loaded image: registry.k8s.io/pause:3.7
+  Loaded image: registry.k8s.io/pause:3.10.1
 ```
 List images and inspect the pause image:
 ```console
 $ sudo crictl images
 IMAGE                       TAG                 IMAGE ID            SIZE
 docker.io/library/busybox   latest              f6e427c148a76       728kB
-registry.k8s.io/pause            3.7                 221177c6082a8       311kB
-$ sudo crictl inspecti 221177c6082a8
+registry.k8s.io/pause       3.10.1              cd073f4c5f6a8       320kB
+$ sudo crictl inspecti cd073f4c5f6a8
   ... displays information about the pause image.
-$ sudo crictl inspecti registry.k8s.io/pause:3.7
+$ sudo crictl inspecti registry.k8s.io/pause:3.10.1
   ... displays information about the pause image.
 ```
 
@@ -159,10 +159,13 @@ container and `rm ID` to remove a container.
 $ crictl version
 Version:  0.1.0
 RuntimeName:  containerd
-RuntimeVersion:  1.0.0-beta.1-186-gdd47a72-TEST
-RuntimeApiVersion:  v1alpha2
+RuntimeVersion:  v1.7.0
+RuntimeApiVersion:  v1
 ```
 ## Display Status & Configuration Information about Containerd & The CRI Plugin
+<details>
+<p>
+
 ```console
 $ crictl info
 {
@@ -182,35 +185,154 @@ $ crictl info
       }
     ]
   },
+  "cniconfig": {
+    "PluginDirs": [
+      "/opt/cni/bin"
+    ],
+    "PluginConfDir": "/etc/cni/net.d",
+    "PluginMaxConfNum": 1,
+    "Prefix": "eth",
+    "Networks": []
+  },
   "config": {
     "containerd": {
       "snapshotter": "overlayfs",
-      "runtime": "io.containerd.runtime.v1.linux"
+      "defaultRuntimeName": "runc",
+      "defaultRuntime": {
+        "runtimeType": "",
+        "runtimePath": "",
+        "runtimeEngine": "",
+        "PodAnnotations": [],
+        "ContainerAnnotations": [],
+        "runtimeRoot": "",
+        "options": {},
+        "privileged_without_host_devices": false,
+        "privileged_without_host_devices_all_devices_allowed": false,
+        "baseRuntimeSpec": "",
+        "cniConfDir": "",
+        "cniMaxConfNum": 0,
+        "snapshotter": "",
+        "sandboxMode": ""
+      },
+      "untrustedWorkloadRuntime": {
+        "runtimeType": "",
+        "runtimePath": "",
+        "runtimeEngine": "",
+        "PodAnnotations": [],
+        "ContainerAnnotations": [],
+        "runtimeRoot": "",
+        "options": {},
+        "privileged_without_host_devices": false,
+        "privileged_without_host_devices_all_devices_allowed": false,
+        "baseRuntimeSpec": "",
+        "cniConfDir": "",
+        "cniMaxConfNum": 0,
+        "snapshotter": "",
+        "sandboxMode": ""
+      },
+      "runtimes": {
+        "runc": {
+          "runtimeType": "io.containerd.runc.v2",
+          "runtimePath": "",
+          "runtimeEngine": "",
+          "PodAnnotations": [],
+          "ContainerAnnotations": [],
+          "runtimeRoot": "",
+          "options": {
+            "BinaryName": "",
+            "CriuImagePath": "",
+            "CriuPath": "",
+            "CriuWorkPath": "",
+            "IoGid": 0,
+            "IoUid": 0,
+            "NoNewKeyring": false,
+            "NoPivotRoot": false,
+            "Root": "",
+            "ShimCgroup": "",
+            "SystemdCgroup": false
+          },
+          "privileged_without_host_devices": false,
+          "privileged_without_host_devices_all_devices_allowed": false,
+          "baseRuntimeSpec": "",
+          "cniConfDir": "",
+          "cniMaxConfNum": 0,
+          "snapshotter": "",
+          "sandboxMode": "podsandbox"
+        }
+      },
+      "noPivot": false,
+      "disableSnapshotAnnotations": true,
+      "discardUnpackedLayers": false,
+      "ignoreBlockIONotEnabledErrors": false,
+      "ignoreRdtNotEnabledErrors": false
     },
     "cni": {
       "binDir": "/opt/cni/bin",
-      "confDir": "/etc/cni/net.d"
+      "confDir": "/etc/cni/net.d",
+      "maxConfNum": 1,
+      "setupSerially": false,
+      "confTemplate": "",
+      "ipPref": ""
     },
     "registry": {
-      "mirrors": {
-        "docker.io": {
-          "endpoint": [
-            "https://registry-1.docker.io"
-          ]
-        }
-      }
+      "configPath": "",
+      "mirrors": {},
+      "configs": {},
+      "auths": {},
+      "headers": {}
     },
-    "streamServerPort": "10010",
-    "sandboxImage": "registry.k8s.io/pause:3.7",
+    "imageDecryption": {
+      "keyModel": "node"
+    },
+    "disableTCPService": true,
+    "streamServerAddress": "127.0.0.1",
+    "streamServerPort": "0",
+    "streamIdleTimeout": "4h0m0s",
+    "enableSelinux": false,
+    "selinuxCategoryRange": 1024,
+    "sandboxImage": "registry.k8s.io/pause:3.10.1",
     "statsCollectPeriod": 10,
+    "systemdCgroup": false,
+    "enableTLSStreaming": false,
+    "x509KeyPairStreaming": {
+      "tlsCertFile": "",
+      "tlsKeyFile": ""
+    },
+    "maxContainerLogSize": 16384,
+    "disableCgroup": false,
+    "disableApparmor": false,
+    "restrictOOMScoreAdj": false,
+    "maxConcurrentDownloads": 3,
+    "disableProcMount": false,
+    "unsetSeccompProfile": "",
+    "tolerateMissingHugetlbController": true,
+    "disableHugetlbController": true,
+    "device_ownership_from_security_context": false,
+    "ignoreImageDefinedVolumes": false,
+    "netnsMountsUnderStateDir": false,
+    "enableUnprivilegedPorts": false,
+    "enableUnprivilegedICMP": false,
+    "enableCDI": false,
+    "cdiSpecDirs": [
+      "/etc/cdi",
+      "/var/run/cdi"
+    ],
+    "imagePullProgressTimeout": "1m0s",
+    "drainExecSyncIOTimeout": "0s",
     "containerdRootDir": "/var/lib/containerd",
-    "containerdEndpoint": "unix:///run/containerd/containerd.sock",
+    "containerdEndpoint": "/run/containerd/containerd.sock",
     "rootDir": "/var/lib/containerd/io.containerd.grpc.v1.cri",
-    "stateDir": "/run/containerd/io.containerd.grpc.v1.cri",
+    "stateDir": "/run/containerd/io.containerd.grpc.v1.cri"
   },
-  "golang": "go1.10"
+  "golang": "go1.20.3",
+  "lastCNILoadStatus": "OK",
+  "lastCNILoadStatus.default": "OK"
 }
 ```
+
+</p>
+</details>
+
 ## More Information
 See [here](https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md)
 for information about crictl.

@@ -20,49 +20,51 @@ import (
 	"errors"
 
 	"github.com/containerd/console"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/cmd/ctr/commands"
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/cmd/ctr/commands"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/errdefs"
+	"github.com/containerd/log"
+	"github.com/urfave/cli/v2"
 )
 
-var startCommand = cli.Command{
+var startCommand = &cli.Command{
 	Name:      "start",
 	Usage:     "Start a container that has been created",
 	ArgsUsage: "CONTAINER",
 	Flags: append(platformStartFlags, []cli.Flag{
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "null-io",
 			Usage: "Send all IO to /dev/null",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "log-uri",
 			Usage: "Log uri",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "fifo-dir",
 			Usage: "Directory used for storing IO FIFOs",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "pid-file",
 			Usage: "File path to write the task's pid",
 		},
-		cli.BoolFlag{
-			Name:  "detach,d",
-			Usage: "Detach from the task after it has started execution",
+		&cli.BoolFlag{
+			Name:    "detach",
+			Aliases: []string{"d"},
+			Usage:   "Detach from the task after it has started execution",
 		},
 	}...),
-	Action: func(context *cli.Context) error {
+	Action: func(cliContext *cli.Context) error {
 		var (
 			err    error
-			id     = context.Args().Get(0)
-			detach = context.Bool("detach")
+			id     = cliContext.Args().Get(0)
+			detach = cliContext.Bool("detach")
 		)
 		if id == "" {
 			return errors.New("container id must be provided")
 		}
-		client, ctx, cancel, err := commands.NewClient(context)
+		client, ctx, cancel, err := commands.NewClient(cliContext)
 		if err != nil {
 			return err
 		}
@@ -78,8 +80,8 @@ var startCommand = cli.Command{
 		}
 		var (
 			tty    = spec.Process.Terminal
-			opts   = GetNewTaskOpts(context)
-			ioOpts = []cio.Opt{cio.WithFIFODir(context.String("fifo-dir"))}
+			opts   = GetNewTaskOpts(cliContext)
+			ioOpts = []cio.Opt{cio.WithFIFODir(cliContext.String("fifo-dir"))}
 		)
 		var con console.Console
 		if tty {
@@ -90,19 +92,24 @@ var startCommand = cli.Command{
 			}
 		}
 
-		task, err := NewTask(ctx, client, container, "", con, context.Bool("null-io"), context.String("log-uri"), ioOpts, opts...)
+		task, err := NewTask(ctx, client, container, "", con, cliContext.Bool("null-io"), cliContext.String("log-uri"), ioOpts, opts...)
 		if err != nil {
 			return err
 		}
 		var statusC <-chan containerd.ExitStatus
 		if !detach {
-			defer task.Delete(ctx)
+			defer func() {
+				if _, err := task.Delete(ctx, containerd.WithProcessKill); err != nil && !errdefs.IsNotFound(err) {
+					log.L.WithError(err).Error("failed to cleanup task")
+				}
+			}()
+
 			if statusC, err = task.Wait(ctx); err != nil {
 				return err
 			}
 		}
-		if context.IsSet("pid-file") {
-			if err := commands.WritePidFile(context.String("pid-file"), int(task.Pid())); err != nil {
+		if cliContext.IsSet("pid-file") {
+			if err := commands.WritePidFile(cliContext.String("pid-file"), int(task.Pid())); err != nil {
 				return err
 			}
 		}
@@ -115,7 +122,7 @@ var startCommand = cli.Command{
 		}
 		if tty {
 			if err := HandleConsoleResize(ctx, task, con); err != nil {
-				logrus.WithError(err).Error("console resize")
+				log.L.WithError(err).Error("console resize")
 			}
 		} else {
 			sigc := commands.ForwardAllSignals(ctx, task)
@@ -131,7 +138,7 @@ var startCommand = cli.Command{
 			return err
 		}
 		if code != 0 {
-			return cli.NewExitError("", int(code))
+			return cli.Exit("", int(code))
 		}
 		return nil
 	},

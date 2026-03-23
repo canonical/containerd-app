@@ -25,16 +25,17 @@ import (
 
 	"github.com/containerd/cgroups/v3/cgroup1"
 	eventstypes "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/pkg/oom"
-	"github.com/containerd/containerd/runtime"
-	"github.com/containerd/containerd/runtime/v2/shim"
-	"github.com/sirupsen/logrus"
+	"github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/containerd/v2/core/runtime"
+	"github.com/containerd/containerd/v2/pkg/oom"
+	"github.com/containerd/containerd/v2/pkg/sys"
+	"github.com/containerd/log"
 	"golang.org/x/sys/unix"
 )
 
 // New returns an epoll implementation that listens to OOM events
 // from a container's cgroups.
-func New(publisher shim.Publisher) (oom.Watcher, error) {
+func New(publisher events.Publisher) (oom.Watcher, error) {
 	fd, err := unix.EpollCreate1(unix.EPOLL_CLOEXEC)
 	if err != nil {
 		return nil, err
@@ -51,7 +52,7 @@ type epoller struct {
 	mu sync.Mutex
 
 	fd        int
-	publisher shim.Publisher
+	publisher events.Publisher
 	set       map[uintptr]*item
 }
 
@@ -67,23 +68,31 @@ func (e *epoller) Close() error {
 
 // Run the epoll loop
 func (e *epoller) Run(ctx context.Context) {
-	var events [128]unix.EpollEvent
+	var (
+		n      int
+		err    error
+		events [128]unix.EpollEvent
+	)
 	for {
-		select {
-		case <-ctx.Done():
-			e.Close()
-			return
-		default:
-			n, err := unix.EpollWait(e.fd, events[:], -1)
-			if err != nil {
-				if err == unix.EINTR {
-					continue
-				}
-				logrus.WithError(err).Error("cgroups: epoll wait")
+		err = sys.IgnoringEINTR(func() error {
+			select {
+			case <-ctx.Done():
+				e.Close()
+				return ctx.Err()
+			default:
+				n, err = unix.EpollWait(e.fd, events[:], -1)
+				return err
 			}
-			for i := 0; i < n; i++ {
-				e.process(ctx, uintptr(events[i].Fd))
+		})
+		if err != nil {
+			if err == context.DeadlineExceeded || err == context.Canceled {
+				return
 			}
+			log.G(ctx).WithError(err).Error("cgroups: epoll wait")
+		}
+
+		for i := 0; i < n; i++ {
+			e.process(ctx, uintptr(events[i].Fd))
 		}
 	}
 }
@@ -130,7 +139,7 @@ func (e *epoller) process(ctx context.Context, fd uintptr) {
 	if err := e.publisher.Publish(ctx, runtime.TaskOOMEventTopic, &eventstypes.TaskOOM{
 		ContainerID: i.id,
 	}); err != nil {
-		logrus.WithError(err).Error("publish OOM event")
+		log.G(ctx).WithError(err).Error("publish OOM event")
 	}
 }
 

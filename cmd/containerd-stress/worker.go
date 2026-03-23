@@ -23,10 +23,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/oci"
-	"github.com/sirupsen/logrus"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/log"
 )
 
 type ctrWorker struct {
@@ -44,7 +44,7 @@ type ctrWorker struct {
 func (w *ctrWorker) run(ctx, tctx context.Context) {
 	defer func() {
 		w.wg.Done()
-		logrus.Infof("worker %d finished", w.id)
+		log.L.Infof("worker %d finished", w.id)
 	}()
 	for {
 		select {
@@ -55,13 +55,13 @@ func (w *ctrWorker) run(ctx, tctx context.Context) {
 
 		w.count++
 		id := w.getID()
-		logrus.Debugf("starting container %s", id)
+		log.L.Debugf("starting container %s", id)
 		start := time.Now()
 		if err := w.runContainer(ctx, id); err != nil {
 			if err != context.DeadlineExceeded ||
 				!strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
 				w.failures++
-				logrus.WithError(err).Errorf("running container %s", id)
+				log.L.WithError(err).Errorf("running container %s", id)
 				errCounter.WithValues(err.Error()).Inc()
 
 			}

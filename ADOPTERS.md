@@ -8,6 +8,8 @@ has extremely broad production usage as a component of the [Docker engine](https
 stack. Note that this includes any use of the open source [Moby engine project](https://github.com/moby/moby);
 including the Balena project listed below.
 
+**[faasd by OpenFaaS](https://github.com/openfaas/faasd)** - faasd in an Open Source project for serverless functions. It takes the same OpenFaaS components that usually run on Kubernetes and instead launches containers directly on a single host using CNI for networking. It's ideal for edge and for deploying functions without having to think about managing and maintaining Kubernetes.
+
 **_[IBM Cloud Kubernetes Service (IKS)](https://www.ibm.com/cloud/container-service)_** - offers containerd as the CRI runtime for v1.11 and higher versions.
 
 **_[IBM Cloud Private (ICP)](https://www.ibm.com/cloud/private)_** - IBM's on-premises cloud offering has containerd as a "tech preview" CRI runtime for the Kubernetes offered within this product for the past two releases, and plans to fully migrate to containerd in a future release.
@@ -30,8 +32,6 @@ including the Balena project listed below.
 
 **_Rancher's Rio project_** - Rancher Labs [Rio](https://github.com/rancher/rio) project uses containerd as the runtime for a combined Kubernetes, Istio, and container "Cloud Native Container Distribution" platform.
 
-**_Eliot_** - The [Eliot](https://github.com/ernoaapa/eliot) container project for IoT device container management uses containerd as the runtime.
-
 **_Balena_** - Resin's [Balena](https://github.com/resin-os/balena) container engine, based on moby/moby but for edge, embedded, and IoT use cases, uses the containerd and runc stack in the same way that the Docker engine uses containerd.
 
 **_LinuxKit_** - the Moby project's [LinuxKit](https://github.com/linuxkit/linuxkit) for building secure, minimal Linux OS images in a container-native model uses containerd as the core runtime for system and service containers.
@@ -44,8 +44,6 @@ including the Balena project listed below.
 
 **_Kata Containers_** - The [Kata containers](https://katacontainers.io/) lightweight-virtualized container runtime project integrates with containerd via a custom v2 shim implementation that drives the Kata container runtime.
 
-**_D2iQ Konvoy_** - D2iQ Inc [Konvoy](https://d2iq.com/products/konvoy) product uses containerd as the container runtime for its Kubernetes distribution.
-
 **_Inclavare Containers_** - [Inclavare Containers](https://github.com/alibaba/inclavare-containers) is an innovation of container runtime with the novel approach for launching protected containers in hardware-assisted Trusted Execution Environment (TEE) technology, aka Enclave, which can prevent the untrusted entity, such as Cloud Service Provider (CSP), from accessing the sensitive and confidential assets in use.
 
 **_VMware TKG_** - [Tanzu Kubernetes Grid](https://tanzu.vmware.com/kubernetes-grid) VMware's Multicloud Kubernetes offering uses containerd as the default CRI runtime.
@@ -55,6 +53,10 @@ including the Balena project listed below.
 **_[Talos Linux](https://www.talos.dev/)_** - Talos Linux is Linux designed for Kubernetes – secure, immutable, and minimal. Talos Linux is using containerd as the core system runtime and CRI implementation.
 
 **_Deckhouse_** - [Deckhouse Kubernetes Platform](https://deckhouse.io/) from Flant allows you to manage Kubernetes clusters anywhere in a fully automatic and uniform fashion. It uses containerd as the default CRI runtime.
+
+**_[Actuated](https://actuated.dev)_** - Actuated is a platform for running self-hosted CI in securely-isolated Firecracker VMs. Actuated uses containerd's image pulling facility to distribute and update the root filesystem for VMs for CI agents.
+
+**_[Syself Autopilot](https://syself.com)** - Syself Autopilot is a simplified Kubernetes platform based on Cluster API that can run on various providers. Syself Autopilot uses containerd as the default CRI runtime.
 
 **_Other Projects_** - While the above list provides a cross-section of well known uses of containerd, the simplicity and clear API layer for containerd has inspired many smaller projects around providing simple container management platforms. Several examples of building higher layer functionality on top of the containerd base have come from various containerd community participants:
  - Michael Crosby's [boss](https://github.com/crosbymichael/boss) project,

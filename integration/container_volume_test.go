@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/v2/integration/images"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -82,7 +82,6 @@ func TestContainerSymlinkVolumes(t *testing.T) {
 			createFileFn: symlinkedFileInSymlinkedFolder,
 		},
 	} {
-		testCase := testCase // capture range variable
 		t.Run(name, func(t *testing.T) {
 			testPodLogDir := t.TempDir()
 			testVolDir := t.TempDir()

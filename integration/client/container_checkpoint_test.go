@@ -29,10 +29,9 @@ import (
 	"syscall"
 	"testing"
 
-	. "github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/oci"
-	"github.com/containerd/containerd/plugin"
+	. "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/oci"
 )
 
 const (
@@ -48,9 +47,6 @@ func TestCheckpointRestorePTY(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip()
-	}
 
 	var (
 		ctx, cancel = testContext(t)
@@ -174,9 +170,6 @@ func TestCheckpointRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip()
-	}
 
 	var (
 		ctx, cancel = testContext(t)
@@ -264,9 +257,6 @@ func TestCheckpointRestoreNewContainer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip()
-	}
 
 	id := t.Name()
 	ctx, cancel := testContext(t)
@@ -354,9 +344,6 @@ func TestCheckpointLeaveRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip()
-	}
 
 	var (
 		ctx, cancel = testContext(t)
@@ -501,7 +488,7 @@ func TestCheckpointRestoreWithImagePath(t *testing.T) {
 
 	stdout := bytes.NewBuffer(nil)
 	spec.Process.Args = []string{"ps", "-ef"}
-	process, err := ntask.Exec(ctx, t.Name()+"_exec", spec.Process, cio.NewCreator(withByteBuffers(stdout)))
+	process, err := ntask.Exec(ctx, t.Name()+"_exec", spec.Process, cio.NewCreator(withStdout(stdout)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,9 +525,6 @@ func TestCheckpointOnPauseStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if client.Runtime() == plugin.RuntimeLinuxV1 {
-		t.Skip()
-	}
 
 	var (
 		ctx, cancel = testContext(t)

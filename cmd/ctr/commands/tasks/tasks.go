@@ -17,21 +17,21 @@
 package tasks
 
 import (
-	gocontext "context"
+	"context"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 type resizer interface {
-	Resize(ctx gocontext.Context, w, h uint32) error
+	Resize(ctx context.Context, w, h uint32) error
 }
 
 // Command is the cli command for managing tasks
-var Command = cli.Command{
+var Command = &cli.Command{
 	Name:    "tasks",
 	Usage:   "Manage tasks",
 	Aliases: []string{"t", "task"},
-	Subcommands: []cli.Command{
+	Subcommands: []*cli.Command{
 		attachCommand,
 		checkpointCommand,
 		deleteCommand,

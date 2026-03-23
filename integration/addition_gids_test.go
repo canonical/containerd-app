@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/v2/integration/images"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,7 +80,6 @@ func TestAdditionalGids(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		i, tc := i, tc
 		tBasename := fmt.Sprintf("case-%d", i)
 		t.Run(tBasename, func(t *testing.T) {
 			t.Log(tc.description)
