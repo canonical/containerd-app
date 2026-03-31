@@ -1,3 +1,9 @@
+containerd-app (2.2.1-0ubuntu1~24.04.2) noble; urgency=medium
+
+  * d/t/basic-smoke: use systemctl to start the service (LP: #2118738)
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Tue, 31 Mar 2026 10:12:37 -0300
+
 containerd-app (2.2.1-0ubuntu1~24.04.1) noble; urgency=medium
 
   * New upstream version 2.2.1 (LP: #2127661)
