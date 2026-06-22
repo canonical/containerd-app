@@ -1,3 +1,38 @@
+containerd-app (2.2.2-0ubuntu2) stonking; urgency=high
+
+  * SECURITY UPDATE: HTTP/2 SETTINGS frame infinite loop (vendored
+    golang.org/x/net)
+    - debian/patches/CVE-2026-33814.patch: move s.Valid() check before
+      switch in ForeachSetting callback
+    - CVE-2026-33814
+  * SECURITY UPDATE: Uncontrolled Resource Consumption via unbounded
+    group parsing
+    - debian/patches/CVE-2026-47262.patch: bound user-database file
+      reads in openUserFile, reject non-regular files
+    - CVE-2026-47262
+  * SECURITY UPDATE: Insufficient Verification of Data Authenticity in
+    CRI checkpoint import
+    - debian/patches/CVE-2026-50195.patch: remove re-tagging of restored
+      checkpoint base images
+    - CVE-2026-50195
+  * SECURITY UPDATE: Reserved label propagation from image configs
+    - debian/patches/CVE-2026-53488.patch: filter containerd.io/ and
+      io.cri-containerd labels from image config
+    - CVE-2026-53488
+  * SECURITY UPDATE: UNIX Symbolic Link Following in CRI checkpoint
+    restore
+    - debian/patches/CVE-2026-53489.patch: add copyNoFollow,
+      checkpointArchiveEntryAllowed, assertCheckpointDirSafe; use
+      dedicated restore subdirectory
+    - CVE-2026-53489
+  * SECURITY UPDATE: Improper Input Validation of CDI annotations in
+    checkpoint restore
+    - debian/patches/CVE-2026-53492.patch: filter cdi.k8s.io
+      annotations on checkpoint restore
+    - CVE-2026-53492
+
+ -- Eduardo Barretto <eduardo.barretto@canonical.com>  Mon, 22 Jun 2026 18:09:37 +0200
+
 containerd-app (2.2.2-0ubuntu1) resolute; urgency=medium
 
   * d/copyright: add missing copyright entry
