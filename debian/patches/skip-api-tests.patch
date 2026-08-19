@@ -1,0 +1,18 @@
+Description: Skip API upstream tests
+ The containerd API became a standalone module and needs its own specific
+ dependencies to run tests. Let's skip those for now.
+Author: Athos Ribeiro <athos@ubuntu.com>
+Forwarded: not-needed
+Last-Update: 2026-08-19
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/Makefile
++++ b/Makefile
+@@ -207,7 +207,6 @@
+ 
+ test: ## run tests, except integration tests and tests that require root
+ 	@echo "$(WHALE) $@"
+-	@$(GO) -C api test ${TESTFLAGS} ${API_PACKAGES}
+ 	@$(GOTEST) ${TESTFLAGS} ${PACKAGES}
+ 
+ root-test: ## run tests, except integration tests
