@@ -32,12 +32,14 @@ var imageListFile = flag.String("image-list", "", "The TOML file containing the 
 type ImageList struct {
 	Alpine           string
 	BusyBox          string
+	BusyBoxByDigest  string
 	Pause            string
 	ResourceConsumer string
 	VolumeCopyUp     string
 	VolumeOwnership  string
 	ArgsEscaped      string
 	Nginx            string
+	Whiteout         string
 }
 
 var (
@@ -51,12 +53,14 @@ func initImages(imageListFile string) {
 	imageList = ImageList{
 		Alpine:           "ghcr.io/containerd/alpine:3.14.0",
 		BusyBox:          "ghcr.io/containerd/busybox:1.36",
-		Pause:            "registry.k8s.io/pause:3.10.1",
+		BusyBoxByDigest:  "ghcr.io/containerd/busybox@sha256:7b3ccabffc97de872a30dfd234fd972a66d247c8cfc69b0550f276481852627c",
+		Pause:            "registry.k8s.io/pause:3.10.2",
 		ResourceConsumer: "registry.k8s.io/e2e-test-images/resource-consumer:1.10",
 		VolumeCopyUp:     "ghcr.io/containerd/volume-copy-up:2.2",
 		VolumeOwnership:  "ghcr.io/containerd/volume-ownership:2.1",
 		ArgsEscaped:      "cplatpublic.azurecr.io/args-escaped-test-image-ns:1.0",
 		Nginx:            "ghcr.io/containerd/nginx:1.27.0",
+		Whiteout:         "ghcr.io/containerd/whiteout-test:1.0",
 	}
 
 	if imageListFile != "" {
@@ -84,6 +88,8 @@ const (
 	Alpine
 	// BusyBox image
 	BusyBox
+	// BusyBox by digest
+	BusyBoxByDigest
 	// Pause image
 	Pause
 	// ResourceConsumer image
@@ -96,18 +102,22 @@ const (
 	ArgsEscaped
 	// Nginx image
 	Nginx
+	// Whiteout image
+	Whiteout
 )
 
 func initImageMap(imageList ImageList) map[int]string {
 	images := map[int]string{}
 	images[Alpine] = imageList.Alpine
 	images[BusyBox] = imageList.BusyBox
+	images[BusyBoxByDigest] = imageList.BusyBoxByDigest
 	images[Pause] = imageList.Pause
 	images[ResourceConsumer] = imageList.ResourceConsumer
 	images[VolumeCopyUp] = imageList.VolumeCopyUp
 	images[VolumeOwnership] = imageList.VolumeOwnership
 	images[ArgsEscaped] = imageList.ArgsEscaped
 	images[Nginx] = imageList.Nginx
+	images[Whiteout] = imageList.Whiteout
 	return images
 }
 

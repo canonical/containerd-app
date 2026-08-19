@@ -26,17 +26,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
+
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/mount"
+	mountmanager "github.com/containerd/containerd/v2/core/mount/manager"
 	"github.com/containerd/containerd/v2/core/snapshots"
 	"github.com/containerd/containerd/v2/core/snapshots/storage"
 	"github.com/containerd/containerd/v2/core/snapshots/testsuite"
+	"github.com/containerd/containerd/v2/internal/dmverity"
 	"github.com/containerd/containerd/v2/internal/erofsutils"
 	"github.com/containerd/containerd/v2/internal/fsverity"
 	"github.com/containerd/containerd/v2/pkg/archive/tartest"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/testutil"
 	"github.com/containerd/containerd/v2/plugins/content/local"
 	erofsdiffer "github.com/containerd/containerd/v2/plugins/diff/erofs"
+	erofsmount "github.com/containerd/containerd/v2/plugins/mount/erofs"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -44,6 +52,10 @@ import (
 const (
 	testFileContent       = "Hello, this is content for testing the EROFS Snapshotter!"
 	testNestedFileContent = "Nested file content"
+	testDmverityMetadata  = `{
+  "roothash": "fedcba098765432109876543210987654321098765432109876543210987",
+  "hashoffset": 4096
+}`
 )
 
 func newSnapshotter(t *testing.T, opts ...Opt) func(ctx context.Context, root string) (snapshots.Snapshotter, func() error, error) {
@@ -52,7 +64,7 @@ func newSnapshotter(t *testing.T, opts ...Opt) func(ctx context.Context, root st
 		t.Skipf("could not find mkfs.erofs: %v", err)
 	}
 
-	if !findErofs() {
+	if !FindErofs() {
 		t.Skip("check for erofs kernel support failed, skipping test")
 	}
 	return func(ctx context.Context, root string) (snapshots.Snapshotter, func() error, error) {
@@ -66,12 +78,7 @@ func newSnapshotter(t *testing.T, opts ...Opt) func(ctx context.Context, root st
 }
 
 func testMount(t *testing.T, scratchFile string) error {
-	root, err := os.MkdirTemp(t.TempDir(), "")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(root)
-
+	root := t.TempDir()
 	m := []mount.Mount{
 		{
 			Type:    "ext4",
@@ -104,6 +111,34 @@ func TestErofs(t *testing.T) {
 func TestErofsWithQuota(t *testing.T) {
 	testutil.RequiresRoot(t)
 	testsuite.SnapshotterSuite(t, "erofs", newSnapshotter(t, WithDefaultSize(16*1024*1024)))
+}
+
+func TestGetCleanupDirectoriesSkipsSnapshotTempDirs(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	snapshotDir := filepath.Join(root, "snapshots")
+	require.NoError(t, os.Mkdir(snapshotDir, 0700))
+
+	ms, err := storage.NewMetaStore(filepath.Join(root, "metadata.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, ms.Close()) })
+	s := &snapshotter{root: root, ms: ms}
+
+	_, err = os.MkdirTemp(snapshotDir, snapshotTempDirPrefix)
+	require.NoError(t, err)
+	orphanDir := filepath.Join(snapshotDir, "orphan")
+	require.NoError(t, os.Mkdir(orphanDir, 0700))
+	require.NoError(t, ms.WithTransaction(ctx, true, func(ctx context.Context) error {
+		_, err := storage.CreateSnapshot(ctx, snapshots.KindActive, "existing", "")
+		return err
+	}))
+
+	var cleanup []string
+	require.NoError(t, ms.WithTransaction(ctx, true, func(ctx context.Context) error {
+		cleanup, err = s.getCleanupDirectories(ctx)
+		return err
+	}))
+	assert.Equal(t, []string{orphanDir}, cleanup)
 }
 
 func TestErofsFsverity(t *testing.T) {
@@ -185,7 +220,7 @@ func TestErofsDifferWithTarIndexMode(t *testing.T) {
 	testutil.RequiresRoot(t)
 	ctx := context.Background()
 
-	if !findErofs() {
+	if !FindErofs() {
 		t.Skip("check for erofs kernel support failed, skipping test")
 	}
 
@@ -209,10 +244,8 @@ func TestErofsDifferWithTarIndexMode(t *testing.T) {
 	// Create EROFS snapshotter
 	snapshotRoot := filepath.Join(tempDir, "snapshots")
 	s, err := NewSnapshotter(snapshotRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { s.Close() })
 
 	// Create test tar content
 	tarReader := createTestTarContent()
@@ -353,4 +386,501 @@ func createTestTarContent() io.ReadCloser {
 
 	// Return the tar as a ReadCloser
 	return tartest.TarFromWriterTo(tarWriter)
+}
+
+// Helper to create a dm-verity metadata file for testing
+func createDmverityMetadata(t *testing.T, layerBlob string) {
+	t.Helper()
+	metadataPath := layerBlob + ".dmverity"
+	err := os.WriteFile(metadataPath, []byte(testDmverityMetadata), 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.Remove(metadataPath) })
+}
+
+// Helper to create a test layer blob file
+func createTestLayerBlob(t *testing.T, dir string) string {
+	t.Helper()
+	layerBlob := filepath.Join(dir, "layer.erofs")
+	err := os.WriteFile(layerBlob, []byte{}, 0644)
+	require.NoError(t, err)
+	return layerBlob
+}
+
+// TestCreateErofsMount tests mount creation without dm-verity
+func TestCreateErofsMount(t *testing.T) {
+	tmpDir := t.TempDir()
+	layerBlob := createTestLayerBlob(t, tmpDir)
+
+	s := &snapshotter{
+		root:         tmpDir,
+		dmverityMode: "off",
+	}
+
+	t.Run("creates regular erofs mount", func(t *testing.T) {
+		m, err := s.createErofsMount(layerBlob)
+		require.NoError(t, err)
+
+		assert.Equal(t, "erofs", m.Type)
+		assert.Equal(t, layerBlob, m.Source)
+		// No X-containerd.dmverity option needed since no .dmverity metadata exists
+		assert.Equal(t, []string{"ro", "loop"}, m.Options)
+	})
+
+	t.Run("always returns erofs mount type", func(t *testing.T) {
+		s.dmverityMode = "on"
+		createDmverityMetadata(t, layerBlob)
+
+		m, err := s.createErofsMount(layerBlob)
+		require.NoError(t, err)
+		// Mount type is always "erofs" - dm-verity detection happens in mount handler
+		assert.Equal(t, "erofs", m.Type)
+		assert.Equal(t, layerBlob, m.Source)
+		assert.Contains(t, m.Options, "ro")
+		assert.Contains(t, m.Options, "loop")
+	})
+
+	t.Run("mode off skips dm-verity even when metadata exists", func(t *testing.T) {
+		metadataFile := layerBlob + ".dmverity"
+		metadataContent := `{
+  "roothash": "fedcba098765432109876543210987654321098765432109876543210987",
+  "hashoffset": 4096
+}`
+		require.NoError(t, os.WriteFile(metadataFile, []byte(metadataContent), 0644))
+
+		s.dmverityMode = "off"
+
+		m, err := s.createErofsMount(layerBlob)
+		require.NoError(t, err)
+
+		assert.Equal(t, "erofs", m.Type)
+		assert.Equal(t, layerBlob, m.Source)
+		// mode "off" skips dm-verity entirely - no dm-verity option in mount options
+		for _, opt := range m.Options {
+			assert.NotContains(t, opt, "X-containerd.dmverity=")
+		}
+	})
+}
+
+// TestDmverityEndToEnd tests the full workflow: differ creates dm-verity layer,
+// snapshotter mounts it via mount manager, and cleanup on removal
+func TestDmverityEndToEnd(t *testing.T) {
+	testutil.RequiresRoot(t)
+
+	supported, err := dmverity.IsSupported()
+	if err != nil || !supported {
+		t.Skip("dm-verity is not supported on this system")
+	}
+
+	t.Run("with regular mode", func(t *testing.T) {
+		testDmverityEndToEndWithMode(t, false)
+	})
+
+	tarSupported, err := erofsutils.SupportGenerateFromTar()
+	if err == nil && tarSupported {
+		t.Run("with tar index mode", func(t *testing.T) {
+			testDmverityEndToEndWithMode(t, true)
+		})
+	} else {
+		t.Logf("Skipping tar index mode test: mkfs.erofs does not support tar mode")
+	}
+}
+
+func testDmverityEndToEndWithMode(t *testing.T, useTarIndex bool) {
+	ctx := context.Background()
+	ctx = namespaces.WithNamespace(ctx, "test")
+	tempDir := t.TempDir()
+
+	metadb := filepath.Join(tempDir, "mounts.db")
+	db, err := bolt.Open(metadb, 0600, nil)
+	require.NoError(t, err)
+	defer db.Close()
+
+	mountTargetDir := filepath.Join(tempDir, "mount-manager")
+	mgr, err := mountmanager.NewManager(db, mountTargetDir,
+		mountmanager.WithMountHandler("erofs", erofsmount.NewErofsMountHandler()))
+	require.NoError(t, err)
+
+	contentStore, err := local.NewStore(filepath.Join(tempDir, "content"))
+	require.NoError(t, err)
+
+	var differOpts []erofsdiffer.DifferOpt
+	differOpts = append(differOpts, erofsdiffer.WithDmverity())
+	if useTarIndex {
+		differOpts = append(differOpts, erofsdiffer.WithTarIndexMode())
+	}
+	differ := erofsdiffer.NewErofsDiffer(contentStore, differOpts...)
+
+	snapshotRoot := filepath.Join(tempDir, "snapshots")
+	sn, err := NewSnapshotter(snapshotRoot, WithDmverityMode("on"))
+	require.NoError(t, err)
+	defer sn.Close()
+
+	s := sn.(*snapshotter)
+
+	tarReader := createTestTarContent()
+	defer tarReader.Close()
+
+	tarContent, err := io.ReadAll(tarReader)
+	require.NoError(t, err)
+
+	desc := ocispec.Descriptor{
+		MediaType: ocispec.MediaTypeImageLayerGzip,
+		Digest:    digest.FromBytes(tarContent),
+		Size:      int64(len(tarContent)),
+	}
+
+	writer, err := contentStore.Writer(ctx,
+		content.WithRef("test-layer"),
+		content.WithDescriptor(desc))
+	require.NoError(t, err)
+
+	_, err = writer.Write(tarContent)
+	require.NoError(t, err)
+
+	err = writer.Commit(ctx, desc.Size, desc.Digest)
+	require.NoError(t, err)
+	writer.Close()
+
+	// Prepare snapshot
+	snapshotKey := "test-snapshot"
+	mounts, err := sn.Prepare(ctx, snapshotKey, "")
+	require.NoError(t, err)
+
+	_, err = differ.Apply(ctx, desc, mounts)
+	require.NoError(t, err)
+
+	commitKey := "test-commit"
+	err = sn.Commit(ctx, commitKey, snapshotKey)
+	require.NoError(t, err)
+
+	var snapshotID string
+	err = s.ms.WithTransaction(ctx, false, func(ctx context.Context) error {
+		var err error
+		snapshotID, _, _, err = storage.GetInfo(ctx, commitKey)
+		return err
+	})
+	require.NoError(t, err)
+
+	// Differ should create .dmverity metadata alongside layer
+	layerPath := s.layerBlobPath(snapshotID)
+	metadataPath := layerPath + ".dmverity"
+
+	metadataData, err := os.ReadFile(metadataPath)
+	require.NoError(t, err, ".dmverity file should exist")
+	require.NotEmpty(t, metadataData, "metadata should not be empty")
+
+	viewKey := "test-view"
+	viewMounts, err := sn.View(ctx, viewKey, commitKey)
+	require.NoError(t, err)
+
+	// Mount handler (not snapshotter) activates dm-verity
+	require.Len(t, viewMounts, 1)
+	assert.Equal(t, "erofs", viewMounts[0].Type)
+	assert.Contains(t, viewMounts[0].Options, "ro")
+	assert.Contains(t, viewMounts[0].Options, "loop")
+
+	viewTarget := filepath.Join(tempDir, "view-mount")
+	require.NoError(t, os.MkdirAll(viewTarget, 0755))
+
+	mountID := "test-view-mount"
+	activateInfo, err := mgr.Activate(ctx, mountID, viewMounts)
+	require.NoError(t, err)
+
+	// EROFS handler mounts directly, check Active mounts for the actual mount point
+	require.Len(t, activateInfo.Active, 1, "should have one active mount from EROFS handler")
+	actualMountPoint := activateInfo.Active[0].MountPoint
+	require.NotEmpty(t, actualMountPoint, "mount point should be set by EROFS handler")
+
+	testData, err := os.ReadFile(filepath.Join(actualMountPoint, "test-file.txt"))
+	require.NoError(t, err, "should be able to read test file from dm-verity mount")
+	assert.Equal(t, testFileContent, string(testData))
+
+	nestedData, err := os.ReadFile(filepath.Join(actualMountPoint, "testdir", "nested.txt"))
+	require.NoError(t, err, "should be able to read nested file from dm-verity mount")
+	assert.Equal(t, testNestedFileContent, string(nestedData))
+
+	err = mgr.Deactivate(ctx, mountID)
+	require.NoError(t, err)
+
+	err = sn.Remove(ctx, viewKey)
+	require.NoError(t, err)
+
+	err = sn.Remove(ctx, commitKey)
+	require.NoError(t, err)
+
+	err = s.ms.WithTransaction(ctx, false, func(ctx context.Context) error {
+		_, err := storage.GetSnapshot(ctx, commitKey)
+		return err
+	})
+	assert.Error(t, err, "snapshot should be removed from metadata")
+}
+
+// TestDmverityModeValidation tests dm-verity mode validation during snapshotter creation
+func TestDmverityModeValidation(t *testing.T) {
+	testutil.RequiresRoot(t)
+	tmpDir := t.TempDir()
+
+	t.Run("rejects invalid dmverity mode", func(t *testing.T) {
+		_, err := NewSnapshotter(tmpDir, WithDmverityMode("invalid-mode"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid dmverity_mode")
+		assert.Contains(t, err.Error(), `must be "auto", "on", or "off"`)
+	})
+
+	t.Run("accepts valid auto mode", func(t *testing.T) {
+		root := filepath.Join(tmpDir, "auto")
+		s, err := NewSnapshotter(root, WithDmverityMode("auto"))
+		require.NoError(t, err)
+		assert.NotNil(t, s)
+		s.Close()
+	})
+
+	t.Run("accepts valid on mode when dm-verity is supported", func(t *testing.T) {
+		supported, err := dmverity.IsSupported()
+		if err != nil || !supported {
+			t.Skip("dm-verity not supported, skipping")
+		}
+
+		root := filepath.Join(tmpDir, "on")
+		s, err := NewSnapshotter(root, WithDmverityMode("on"))
+		require.NoError(t, err)
+		assert.NotNil(t, s)
+		s.Close()
+	})
+
+	t.Run("accepts valid off mode", func(t *testing.T) {
+		root := filepath.Join(tmpDir, "off")
+		s, err := NewSnapshotter(root, WithDmverityMode("off"))
+		require.NoError(t, err)
+		assert.NotNil(t, s)
+		s.Close()
+	})
+
+	t.Run("defaults to auto mode when not specified", func(t *testing.T) {
+		root := filepath.Join(tmpDir, "default")
+		s, err := NewSnapshotter(root)
+		require.NoError(t, err)
+		snap := s.(*snapshotter)
+		assert.Equal(t, "auto", snap.dmverityMode)
+		s.Close()
+	})
+}
+
+// TestApplyDmverityPolicy tests the dm-verity policy application logic
+func TestApplyDmverityPolicy(t *testing.T) {
+	testutil.RequiresRoot(t)
+	tmpDir := t.TempDir()
+	layerBlob := createTestLayerBlob(t, tmpDir)
+
+	t.Run("mode on requires metadata to exist", func(t *testing.T) {
+		s := &snapshotter{
+			dmverityMode: "on",
+		}
+
+		_, err := s.applyDmverityPolicy(layerBlob)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "dm-verity mode is 'on' but .dmverity metadata not found")
+		assert.Contains(t, err.Error(), "layer was created before dm-verity was enabled")
+	})
+
+	t.Run("mode auto returns empty string when no metadata", func(t *testing.T) {
+		s := &snapshotter{
+			dmverityMode: "auto",
+		}
+
+		opt, err := s.applyDmverityPolicy(layerBlob)
+		require.NoError(t, err)
+		assert.Empty(t, opt)
+	})
+
+	t.Run("mode off returns empty string when metadata exists", func(t *testing.T) {
+		createDmverityMetadata(t, layerBlob)
+
+		s := &snapshotter{
+			dmverityMode: "off",
+		}
+
+		opt, err := s.applyDmverityPolicy(layerBlob)
+		require.NoError(t, err)
+		assert.Empty(t, opt)
+	})
+
+	t.Run("mode on returns metadata path when metadata exists", func(t *testing.T) {
+		createDmverityMetadata(t, layerBlob)
+
+		s := &snapshotter{
+			dmverityMode: "on",
+		}
+
+		opt, err := s.applyDmverityPolicy(layerBlob)
+		require.NoError(t, err)
+		expectedPath := layerBlob + ".dmverity"
+		assert.Equal(t, "X-containerd.dmverity="+expectedPath, opt)
+	})
+
+	t.Run("mode auto returns metadata path when metadata exists", func(t *testing.T) {
+		createDmverityMetadata(t, layerBlob)
+
+		s := &snapshotter{
+			dmverityMode: "auto",
+		}
+
+		opt, err := s.applyDmverityPolicy(layerBlob)
+		require.NoError(t, err)
+		expectedPath := layerBlob + ".dmverity"
+		assert.Equal(t, "X-containerd.dmverity="+expectedPath, opt)
+	})
+}
+
+func TestMountFsMeta(t *testing.T) {
+	root := t.TempDir()
+	s := &snapshotter{root: root}
+
+	parents := []string{"p0", "p1", "p2"}
+	for _, id := range parents {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "snapshots", id), 0755))
+	}
+
+	writeMeta := func(t *testing.T, id string, contents []byte) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(s.fsMetaPath(id), contents, 0644))
+	}
+	removeMeta := func(t *testing.T, id string) {
+		t.Helper()
+		err := os.Remove(s.fsMetaPath(id))
+		if err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+
+	snap := storage.Snapshot{ParentIDs: parents}
+
+	t.Run("missing fsmeta returns false", func(t *testing.T) {
+		for _, id := range parents {
+			removeMeta(t, id)
+		}
+		_, ok := s.mountFsMeta(snap, 0)
+		assert.False(t, ok)
+	})
+
+	t.Run("empty fsmeta returns false", func(t *testing.T) {
+		writeMeta(t, "p0", nil)
+		t.Cleanup(func() { removeMeta(t, "p0") })
+
+		_, ok := s.mountFsMeta(snap, 0)
+		assert.False(t, ok)
+	})
+
+	t.Run("non-empty fsmeta on top parent returns mount with all device options", func(t *testing.T) {
+		writeMeta(t, "p0", []byte("merged"))
+		t.Cleanup(func() { removeMeta(t, "p0") })
+
+		m, ok := s.mountFsMeta(snap, 0)
+		require.True(t, ok)
+		assert.Equal(t, "erofs", m.Type)
+		assert.Equal(t, s.fsMetaPath("p0"), m.Source)
+		// Devices appended in reverse parent order from len-1 down to id.
+		assert.Equal(t, []string{
+			"ro", "loop",
+			"device=" + s.layerBlobPath("p2"),
+			"device=" + s.layerBlobPath("p1"),
+			"device=" + s.layerBlobPath("p0"),
+		}, m.Options)
+	})
+
+	t.Run("non-empty fsmeta on intermediate parent only references parents at or below id", func(t *testing.T) {
+		writeMeta(t, "p1", []byte("merged"))
+		t.Cleanup(func() { removeMeta(t, "p1") })
+
+		m, ok := s.mountFsMeta(snap, 1)
+		require.True(t, ok)
+		assert.Equal(t, s.fsMetaPath("p1"), m.Source)
+		assert.Equal(t, []string{
+			"ro", "loop",
+			"device=" + s.layerBlobPath("p2"),
+			"device=" + s.layerBlobPath("p1"),
+		}, m.Options)
+	})
+}
+
+// TestMountsWithMergedFsMeta covers s.mounts()'s assembly of the overlay
+// lowerdir when a merged fsmeta is present on a parent below the top of the
+// chain, i.e. one or more plain (non-merged) layers are stacked on top of a
+// merged fsmeta lower.
+func TestMountsWithMergedFsMeta(t *testing.T) {
+	root := t.TempDir()
+	s := &snapshotter{root: root}
+
+	// Chain (top to bottom): p0, p1, p2, p3. A merged fsmeta is only
+	// present for p2, flattening the sub-chain [p2, p3]. p0 and p1 are
+	// plain layers stacked on top of that merged base.
+	parents := []string{"p0", "p1", "p2", "p3"}
+	for _, id := range parents {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "snapshots", id), 0755))
+		require.NoError(t, os.WriteFile(s.layerBlobPath(id), []byte("layer"), 0644))
+	}
+	require.NoError(t, os.WriteFile(s.fsMetaPath("p2"), []byte("merged"), 0644))
+
+	snap := storage.Snapshot{Kind: snapshots.KindView, ParentIDs: parents}
+	info := snapshots.Info{}
+
+	mounts, err := s.mounts(snap, info)
+	require.NoError(t, err)
+
+	// Expect: [erofs(p0), erofs(p1), erofs(fsmeta p2, device=p3,p2), overlay]
+	require.Len(t, mounts, 4)
+
+	assert.Equal(t, "erofs", mounts[0].Type)
+	assert.Equal(t, s.layerBlobPath("p0"), mounts[0].Source)
+
+	assert.Equal(t, "erofs", mounts[1].Type)
+	assert.Equal(t, s.layerBlobPath("p1"), mounts[1].Source)
+
+	assert.Equal(t, "erofs", mounts[2].Type)
+	assert.Equal(t, s.fsMetaPath("p2"), mounts[2].Source)
+	assert.Equal(t, []string{
+		"ro", "loop",
+		"device=" + s.layerBlobPath("p3"),
+		"device=" + s.layerBlobPath("p2"),
+	}, mounts[2].Options)
+
+	// The overlay must span all three lowers (indices 0-2): the two plain
+	// top layers plus the merged fsmeta.
+	overlay := mounts[3]
+	assert.Equal(t, "format/mkdir/overlay", overlay.Type)
+	assert.Contains(t, overlay.Options, "lowerdir={{ overlay 0 2 }}")
+}
+
+// TestMountsWithMergedFsMetaOnTopParent covers the case where the merged
+// fsmeta is valid for the topmost parent, so it is the only lower. Since
+// overlayfs rejects a lowerdir with no upperdir, this collapses to a plain
+// bind mount instead.
+func TestMountsWithMergedFsMetaOnTopParent(t *testing.T) {
+	root := t.TempDir()
+	s := &snapshotter{root: root}
+
+	parents := []string{"p0", "p1"}
+	for _, id := range parents {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "snapshots", id), 0755))
+		require.NoError(t, os.WriteFile(s.layerBlobPath(id), []byte("layer"), 0644))
+	}
+	require.NoError(t, os.WriteFile(s.fsMetaPath("p0"), []byte("merged"), 0644))
+
+	snap := storage.Snapshot{Kind: snapshots.KindView, ParentIDs: parents}
+	info := snapshots.Info{}
+
+	mounts, err := s.mounts(snap, info)
+	require.NoError(t, err)
+
+	require.Len(t, mounts, 2)
+	assert.Equal(t, "erofs", mounts[0].Type)
+	assert.Equal(t, s.fsMetaPath("p0"), mounts[0].Source)
+	assert.Equal(t, []string{
+		"ro", "loop",
+		"device=" + s.layerBlobPath("p1"),
+		"device=" + s.layerBlobPath("p0"),
+	}, mounts[0].Options)
+
+	assert.Equal(t, "format/bind", mounts[1].Type)
+	assert.Equal(t, "{{ mount 0 }}", mounts[1].Source)
 }

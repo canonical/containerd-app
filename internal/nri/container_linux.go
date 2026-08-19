@@ -36,6 +36,8 @@ func containerToNRI(ctr Container) *nri.Container {
 		NetDevices:     lnxCtr.GetNetDevices(),
 		Rdt:            lnxCtr.GetRdt(),
 		SeccompProfile: lnxCtr.GetSeccompProfile(),
+		Sysctl:         lnxCtr.GetSysctl(),
+		SeccompPolicy:  lnxCtr.GetSeccompPolicy(),
 	}
 	return nriCtr
 }
