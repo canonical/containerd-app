@@ -1,10 +1,14 @@
-containerd-app (2.3.4-0ubuntu1) stonking; urgency=medium
+containerd-app (2.3.4+dfsg1-0ubuntu1) stonking; urgency=medium
 
-  * New upstream version 2.3.4
+  * New upstream version 2.3.4+dfsg1
   * d/p/CVE-2026-*.patch: drop patches applied upstream
   * d/control: build with golang 1.26
   * d/rules: add golang 1.26 to PATH
   * d/p/skip-api-tests.patch: skip tests of new API module
+  * d/{copyright,watch}: do not ship non-free headers
+  * d/copyright: update copyright data
+  * d/p/unembed-nss.patch: use libnss to avoid vendored non-free headers
+  * d/control: B-D on libnss3-dev
 
  -- Athos Ribeiro <athos@ubuntu.com>  Wed, 19 Aug 2026 20:58:45 -0300
 
