@@ -1,6 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: containerd
 Source: https://github.com/containerd/containerd
+Files-Excluded:
+  vendor/github.com/miekg/pkcs11/pkcs11t.h
+  vendor/github.com/miekg/pkcs11/pkcs11.h
+  vendor/github.com/miekg/pkcs11/pkcs11f.h
 
 Files: *
 Copyright: 2013-2016 Docker, Inc.
