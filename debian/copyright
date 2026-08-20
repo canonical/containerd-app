@@ -17,6 +17,7 @@ License: CC-BY-SA-4.0
 
 Files: debian/*
 Copyright: 2016 Tianon Gravi <tianon@debian.org>
+           2016-2025 Canonical Ltd.
 License: Apache-2.0
 
 Files: api/types/fieldpath.proto
@@ -181,10 +182,6 @@ Files: vendor/github.com/sirupsen/logrus/*
 Copyright: 2014 Simon Eskildsen
 License: Expat
 
-Files: vendor/github.com/sirupsen/logrus/alt_exit.go
-Copyright: 2012 Miki Tebeka <miki.tebeka@gmail.com>
-License: Expat
-
 Files: vendor/github.com/tchap/go-patricia/*
 Copyright: 2014 The AUTHORS
 License: Expat
@@ -320,10 +317,6 @@ Files: vendor/github.com/mdlayher/vsock/*
 Copyright: 2017-2022, Matt Layher
 License: Expat
 
-Files: vendor/go.uber.org/*
-Copyright: 2017-2023, Uber Technologies, Inc
-License: Expat
-
 Files: vendor/go.yaml.in/yaml/v2/*
 Copyright: 2011-2016, Canonical Ltd
 License: Apache-2.0
@@ -394,11 +387,7 @@ Copyright: 2022, Teppei Fukuda
 License: Expat
 
 Files: vendor/github.com/miekg/*
-Copyright: 2016, OASIS Open
-License: BSD-3-clause
-
-Files: vendor/github.com/mxk/go-flowrate/*
-Copyright: 2014, The Go-FlowRate Authors
+Copyright: 2013, Miek Gieben
 License: BSD-3-clause
 
 Files: vendor/github.com/pelletier/go-toml/v2/*
@@ -450,6 +439,15 @@ License: Expat
 
 Files: vendor/github.com/intel/*
 Copyright: 2019-2023, Intel Corporation
+License: Apache-2.0
+
+Files: vendor/cyphar.com/go-pathrs/*
+Copyright: 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+           2019-2025 SUSE LLC
+License: MPL-2.0
+
+Files: vendor/github.com/erofs/go-erofs/*
+Copyright: The go-erofs Authors
 License: Apache-2.0
 
 License: Apache-2.0
@@ -938,8 +936,9 @@ License: BSD-3-clause-Google
  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ .
 
 License: BSD-2-clause
  Redistribution and use in source and binary forms, with or without modification,
@@ -974,7 +973,7 @@ License: ISC
  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
  LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
  OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- PERFORMANCE OF THIS SOFTWARE. 
+ PERFORMANCE OF THIS SOFTWARE.
 
 License: MPL-2.0
  Mozilla Public License, version 2.0
