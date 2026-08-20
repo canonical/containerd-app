@@ -7,6 +7,7 @@ Build-Depends: debhelper-compat (= 12),
                go-md2man,
                golang-1.26-go,
                libbtrfs-dev | btrfs-progs (<< 4.16.1~),
+               libnss3-dev,
                libseccomp-dev,
                pkgconf,
                procps
