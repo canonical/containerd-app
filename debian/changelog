@@ -1,3 +1,9 @@
+containerd-app (2.3.4+dfsg1-0ubuntu2) stonking; urgency=medium
+
+  * Skip additional test requiring HugeTLB controller
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Fri, 21 Aug 2026 11:48:26 -0300
+
 containerd-app (2.3.4+dfsg1-0ubuntu1) stonking; urgency=medium
 
   * New upstream version 2.3.4+dfsg1
