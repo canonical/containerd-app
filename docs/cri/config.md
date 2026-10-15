@@ -244,7 +244,7 @@ version = 3
     use_local_image_pull = false
 
     [plugins.'io.containerd.cri.v1.images'.pinned_images]
-      sandbox = 'registry.k8s.io/pause:3.10.1'
+      sandbox = 'registry.k8s.io/pause:3.10.2'
 
     [plugins.'io.containerd.cri.v1.images'.registry]
       config_path = ''
@@ -272,6 +272,10 @@ version = 3
     cdi_spec_dirs = ['/etc/cdi', '/var/run/cdi']
     drain_exec_sync_io_timeout = '0s'
     ignore_deprecation_warnings = []
+    stats_collect_period = '1s'
+    stats_retention_period = '2m'
+    enable_criu = true
+    enable_experimental_restore_via_create = false
 
     [plugins.'io.containerd.cri.v1.runtime'.containerd]
       default_runtime_name = 'runc'
@@ -372,7 +376,7 @@ version = 2
   selinux_category_range = 1024
 
   # sandbox_image is the image used by sandbox container.
-  sandbox_image = "registry.k8s.io/pause:3.10.1"
+  sandbox_image = "registry.k8s.io/pause:3.10.2"
 
   # stats_collect_period is the period (in seconds) of snapshots stats collection.
   stats_collect_period = 10
@@ -469,6 +473,15 @@ version = 2
   #
   # For example, the value can be '5h', '2h30m', '10s'.
   drain_exec_sync_io_timeout = "0s"
+
+  # enable_criu enables CRIU (Checkpoint/Restore In Userspace) support.
+  # When set to false, checkpoint/restore operations will be disabled.
+  enable_criu = true
+
+  # enable_experimental_restore_via_create enables experimental restore of
+  # container checkpoints via CreateContainer.
+  # When set to false, checkpoint restore via CreateContainer will be disabled.
+  enable_experimental_restore_via_create = false
 
   # 'plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming' contains a x509 valid key pair to stream with tls.
   [plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming]
