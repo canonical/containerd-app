@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	goruntime "runtime"
 	"slices"
+	"strings"
 
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
@@ -69,7 +71,7 @@ func init() {
 		Config: &TaskConfig{
 			Platforms: defaultPlatforms(),
 		},
-		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
+		InitFn: func(ic *plugin.InitContext) (any, error) {
 			config := ic.Config.(*TaskConfig)
 
 			supportedPlatforms, err := platforms.ParseAll(config.Platforms)
@@ -77,6 +79,10 @@ func init() {
 				return nil, err
 			}
 			ic.Meta.Platforms = supportedPlatforms
+			if ic.Meta.Exports == nil {
+				ic.Meta.Exports = make(map[string]string, 1)
+			}
+			ic.Meta.Exports["log-uri-schemes"] = strings.Join(supportedLogURISchemes(), ",")
 
 			shimManagerI, err := ic.GetSingle(plugins.ShimPlugin)
 			if err != nil {
@@ -180,8 +186,7 @@ func (m *TaskManager) Create(ctx context.Context, taskID string, opts runtime.Cr
 	}
 
 	// Add options based on runtime
-	ai, err := m.mounts.Activate(ctx, taskID, opts.Rootfs, activateOpts...)
-	if err == nil {
+	if ai, err := m.mounts.Activate(ctx, taskID, opts.Rootfs, activateOpts...); err == nil {
 		opts.Rootfs = ai.System
 		defer func() {
 			if retErr != nil {
@@ -192,6 +197,15 @@ func (m *TaskManager) Create(ctx context.Context, taskID string, opts runtime.Cr
 				}
 			}
 		}()
+	} else if errdefs.IsAlreadyExists(err) {
+		// If creation of task with same identifier, use existing mount rather than forcing
+		// deactivation of the old one. The back reference will prevent racing between
+		// deactivation and re-use, as the container with the same ID would still exist.
+		ai, err = m.mounts.Info(ctx, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get info on already active mount: %w", err)
+		}
+		opts.Rootfs = ai.System
 	} else if !errdefs.IsNotImplemented(err) {
 		return nil, err
 	}
@@ -320,6 +334,15 @@ func (m *TaskManager) Delete(ctx context.Context, taskID string) (*runtime.Exit,
 	return exit, nil
 }
 
+func supportedLogURISchemes() []string {
+	switch goruntime.GOOS {
+	case "windows":
+		return []string{"binary", "binary-v2", "file", "npipe"}
+	default:
+		return []string{"fifo", "binary", "binary-v2", "file"}
+	}
+}
+
 func getRuntimeInfo(ctx context.Context, shims *ShimManager, req *apitypes.RuntimeRequest) (*apitypes.RuntimeInfo, error) {
 	runtimePath, err := shims.resolveRuntimePath(req.RuntimePath)
 	if err != nil {
@@ -347,7 +370,7 @@ func getRuntimeInfo(ctx context.Context, shims *ShimManager, req *apitypes.Runti
 	return &info, nil
 }
 
-func (m *TaskManager) PluginInfo(ctx context.Context, request interface{}) (interface{}, error) {
+func (m *TaskManager) PluginInfo(ctx context.Context, request any) (any, error) {
 	req, ok := request.(*apitypes.RuntimeRequest)
 	if !ok {
 		return nil, fmt.Errorf("unknown request type %T: %w", request, errdefs.ErrNotImplemented)
