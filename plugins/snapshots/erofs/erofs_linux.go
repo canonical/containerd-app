@@ -38,7 +38,7 @@ import (
 const defaultWritableSize = 0
 
 // check if EROFS kernel filesystem is registered or not
-func findErofs() bool {
+func FindErofs() bool {
 	fs, err := os.ReadFile("/proc/filesystems")
 	if err != nil {
 		return false
@@ -55,7 +55,7 @@ func checkCompatibility(root string) error {
 		return fmt.Errorf("%s does not support d_type. If the backing filesystem is xfs, please reformat with ftype=1 to enable d_type support", root)
 	}
 
-	if !findErofs() {
+	if !FindErofs() {
 		return fmt.Errorf("EROFS unsupported, please `modprobe erofs`: %w", plugin.ErrSkipPlugin)
 	}
 
@@ -122,16 +122,12 @@ func convertDirToErofs(ctx context.Context, layerBlob, upperDir string) error {
 	return nil
 }
 
-func upperDirectoryPermission(p, parent string) error {
-	st, err := os.Stat(parent)
+func getParentOwnership(parentPath string) (uid, gid int, err error) {
+	st, err := os.Stat(parentPath)
 	if err != nil {
-		return fmt.Errorf("failed to stat parent: %w", err)
+		return -1, -1, fmt.Errorf("failed to stat parent: %w", err)
 	}
 
 	stat := st.Sys().(*syscall.Stat_t)
-	if err := os.Lchown(p, int(stat.Uid), int(stat.Gid)); err != nil {
-		return fmt.Errorf("failed to chown: %w", err)
-	}
-
-	return nil
+	return int(stat.Uid), int(stat.Gid), nil
 }

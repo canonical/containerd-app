@@ -32,9 +32,7 @@ func DefaultImageConfig() ImageConfig {
 		Snapshotter:                defaults.DefaultSnapshotter,
 		DisableSnapshotAnnotations: true,
 		MaxConcurrentDownloads:     3,
-		Registry: Registry{
-			ConfigPath: "/etc/containerd/certs.d:/etc/docker/certs.d",
-		},
+		Registry:                   Registry{},
 		ImageDecryption: ImageDecryption{
 			KeyModel: KeyModelNode,
 		},
@@ -77,7 +75,7 @@ func DefaultRuntimeConfig() RuntimeConfig {
 	# CriuWorkPath is the criu work path.
 	CriuWorkPath = ""
 `
-	var m map[string]interface{}
+	var m map[string]any
 	toml.Unmarshal([]byte(defaultRuncV2Opts), &m)
 
 	return RuntimeConfig{
@@ -99,17 +97,19 @@ func DefaultRuntimeConfig() RuntimeConfig {
 				},
 			},
 		},
-		EnableSelinux:                    false,
-		SelinuxCategoryRange:             1024,
-		MaxContainerLogLineSize:          16 * 1024,
-		DisableProcMount:                 false,
-		TolerateMissingHugetlbController: true,
-		DisableHugetlbController:         true,
-		IgnoreImageDefinedVolumes:        false,
-		EnableCDI:                        true,
-		CDISpecDirs:                      []string{"/etc/cdi", "/var/run/cdi"},
-		DrainExecSyncIOTimeout:           "0s",
-		EnableUnprivilegedPorts:          true,
-		EnableUnprivilegedICMP:           true,
+		EnableSelinux:                      false,
+		SelinuxCategoryRange:               1024,
+		MaxContainerLogLineSize:            16 * 1024,
+		DisableProcMount:                   false,
+		TolerateMissingHugetlbController:   true,
+		DisableHugetlbController:           true,
+		IgnoreImageDefinedVolumes:          false,
+		EnableCDI:                          func() *bool { v := true; return &v }(),
+		CDISpecDirs:                        []string{"/etc/cdi", "/var/run/cdi"},
+		DrainExecSyncIOTimeout:             "0s",
+		EnableUnprivilegedPorts:            true,
+		EnableUnprivilegedICMP:             true,
+		EnableCRIU:                         func() *bool { v := true; return &v }(),
+		EnableExperimentalRestoreViaCreate: false,
 	}
 }
