@@ -7,3 +7,4 @@ CVE-2026-53492.patch
 CVE-2026-53489.patch
 CVE-2026-47262.patch
 CVE-2026-33814.patch
+defer-ShutdownSandbox.patch
