@@ -165,7 +165,7 @@ func (c *CRIImageService) PullImage(ctx context.Context, name string, credential
 		return "", fmt.Errorf("failed to parse image_pull_progress_timeout %q: %w", c.config.ImagePullProgressTimeout, err)
 	}
 
-	snapshotter, err := c.snapshotterFromPodSandboxConfig(ctx, ref, sandboxConfig)
+	snapshotter, err := c.snapshotterFromPodSandboxConfig(ctx, ref, sandboxConfig, runtimeHandler)
 	if err != nil {
 		return "", err
 	}
@@ -263,8 +263,7 @@ func (c *CRIImageService) pullImageWithLocalPull(
 		}),
 	}
 
-	// Temporarily removed for v2 upgrade
-	//pullOpts = append(pullOpts, c.encryptedImagesPullOpts()...)
+	pullOpts = append(pullOpts, c.encryptedImagesPullOpts()...)
 	if !c.config.DisableSnapshotAnnotations {
 		pullOpts = append(pullOpts,
 			containerd.WithImageHandlerWrapper(snpkg.AppendInfoHandlerWrapper(ref)))
@@ -300,16 +299,23 @@ func (c *CRIImageService) pullImageWithTransferService(
 	transferProgressReporter := newTransferProgressReporter(ref, rcancel, imagePullProgressTimeout)
 
 	// Set image store opts
-	var sopts []transferimage.StoreOpt
-	sopts = append(sopts, transferimage.WithPlatforms(platforms.DefaultSpec()))
-	sopts = append(sopts, transferimage.WithUnpack(platforms.DefaultSpec(), snapshotter))
-	sopts = append(sopts, transferimage.WithImageLabels(labels))
+	sopts := []transferimage.StoreOpt{
+		transferimage.WithPlatforms(platforms.DefaultSpec()),
+		transferimage.WithUnpack(platforms.DefaultSpec(), snapshotter),
+		transferimage.WithImageLabels(labels),
+	}
+
 	is := transferimage.NewStore(ref, sopts...)
+
 	log.G(ctx).Debugf("Getting new CRI credentials")
+
 	ch := newCRICredentials(ref, credentials)
-	opts := []registry.Opt{registry.WithCredentials(ch)}
-	opts = append(opts, registry.WithHeaders(c.config.Registry.Headers))
-	opts = append(opts, registry.WithHostDir(c.config.Registry.ConfigPath))
+	opts := []registry.Opt{
+		registry.WithCredentials(ch),
+		registry.WithHeaders(c.config.Registry.Headers),
+		registry.WithHostDir(c.config.Registry.ConfigPath),
+	}
+
 	reg, err := registry.NewOCIRegistry(ctx, ref, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OCI registry: %w", err)
@@ -636,7 +642,6 @@ func (c *CRIImageService) registryEndpoints(host string) ([]string, error) {
 
 // encryptedImagesPullOpts returns the necessary list of pull options required
 // for decryption of encrypted images based on the cri decryption configuration.
-// Temporarily removed for v2 upgrade
 func (c *CRIImageService) encryptedImagesPullOpts() []containerd.RemoteOpt {
 	if c.config.ImageDecryption.KeyModel == criconfig.KeyModelNode {
 		ltdd := imgcrypt.Payload{}
@@ -823,25 +828,41 @@ func (rt *pullRequestReporterRoundTripper) RoundTrip(req *http.Request) (*http.R
 	return resp, err
 }
 
-// Given that runtime information is not passed from PullImageRequest, we depend on an experimental annotation
-// passed from pod sandbox config to get the runtimeHandler. The annotation key is specified in configuration.
-// Once we know the runtime, try to override default snapshotter if it is set for this runtime.
+// snapshotterFromPodSandboxConfig returns the snapshotter to use for the given
+// runtime handler. If a runtime-specific snapshotter is configured, it will be
+// returned; otherwise the default snapshotter is used.
+//
+// The runtimeHandler parameter (from CRI PullImageRequest, available since cri-api v0.29.0)
+// takes precedence. If empty, we fall back to the experimental annotation for backward
+// compatibility with clients that don't pass the runtime handler.
+//
+// Deprecated: The annotation-based fallback (io.containerd.cri.runtime-handler) is
+// deprecated and will be removed in containerd 2.5.
+//
 // See https://github.com/containerd/containerd/issues/6657
 func (c *CRIImageService) snapshotterFromPodSandboxConfig(ctx context.Context, imageRef string,
-	s *runtime.PodSandboxConfig) (string, error) {
+	s *runtime.PodSandboxConfig, runtimeHandler string) (string, error) {
 	snapshotter := c.config.Snapshotter
-	if s == nil || s.Annotations == nil {
+	if s == nil {
 		return snapshotter, nil
 	}
 
-	// TODO(kiashok): honor the new CRI runtime handler field added to v0.29.0
-	// for image pull per runtime class support.
-	runtimeHandler, ok := s.Annotations[annotations.RuntimeHandler]
-	if !ok {
-		return snapshotter, nil
+	// If runtimeHandler parameter is empty, fall back to annotation for backward compatibility
+	if runtimeHandler == "" {
+		if s.Annotations == nil {
+			return snapshotter, nil
+		}
+		var ok bool
+		runtimeHandler, ok = s.Annotations[annotations.RuntimeHandler]
+		if !ok {
+			return snapshotter, nil
+		}
+		log.G(ctx).Warnf("Using deprecated annotation %q for runtime handler. "+
+			"This will be removed in a future release (2.5). "+
+			"Please update your CRI client to pass runtime handler in PullImageRequest.",
+			annotations.RuntimeHandler)
 	}
 
-	// TODO: Ensure error is returned if runtime not found?
 	if c.runtimePlatforms != nil {
 		if p, ok := c.runtimePlatforms[runtimeHandler]; ok && p.Snapshotter != snapshotter {
 			snapshotter = p.Snapshotter

@@ -23,7 +23,9 @@ import (
 
 	"github.com/containerd/log"
 
+	"github.com/containerd/containerd/v2/plugins/services/warning"
 	"github.com/containerd/containerd/v2/version"
+
 	nri "github.com/containerd/nri/pkg/adaptation"
 )
 
@@ -47,6 +49,12 @@ type API interface {
 
 	// RunPodSandbox relays pod creation events to NRI.
 	RunPodSandbox(context.Context, PodSandbox) error
+
+	// UpdatePodSandbox relays pod update requests to NRI.
+	UpdatePodSandbox(context.Context, PodSandbox, *nri.LinuxResources, *nri.LinuxResources) error
+
+	// PostUpdatePodSandbox relays successful pod update events to NRI.
+	PostUpdatePodSandbox(context.Context, PodSandbox) error
 
 	// StopPodSandbox relays pod shutdown events to NRI.
 	StopPodSandbox(context.Context, PodSandbox) error
@@ -105,7 +113,7 @@ type local struct {
 var _ API = &local{}
 
 // New creates an instance of the NRI interface with the given configuration.
-func New(cfg *Config) (API, error) {
+func New(cfg *Config, ws warning.Service) (API, error) {
 	l := &local{
 		cfg: cfg,
 	}
@@ -125,6 +133,7 @@ func New(cfg *Config) (API, error) {
 	)
 
 	cfg.ConfigureTimeouts()
+	opts = append(opts, nri.WithDeprecationRecorder(&recorder{ws: ws}))
 
 	l.nri, err = nri.New(name, version, syncFn, updateFn, opts...)
 	if err != nil {
@@ -182,6 +191,39 @@ func (l *local) RunPodSandbox(ctx context.Context, pod PodSandbox) error {
 	err := l.nri.RunPodSandbox(ctx, request)
 	l.setState(pod.GetID(), Running)
 	return err
+}
+
+func (l *local) UpdatePodSandbox(ctx context.Context, pod PodSandbox, overhead *nri.LinuxResources, req *nri.LinuxResources) error {
+	if !l.IsEnabled() {
+		return nil
+	}
+
+	l.Lock()
+	defer l.Unlock()
+
+	request := &nri.UpdatePodSandboxRequest{
+		Pod:                    podSandboxToNRI(pod),
+		OverheadLinuxResources: overhead,
+		LinuxResources:         req,
+	}
+
+	_, err := l.nri.UpdatePodSandbox(ctx, request)
+	return err
+}
+
+func (l *local) PostUpdatePodSandbox(ctx context.Context, pod PodSandbox) error {
+	if !l.IsEnabled() {
+		return nil
+	}
+
+	l.Lock()
+	defer l.Unlock()
+
+	request := &nri.PostUpdatePodSandboxRequest{
+		Pod: podSandboxToNRI(pod),
+	}
+
+	return l.nri.PostUpdatePodSandbox(ctx, request)
 }
 
 func (l *local) StopPodSandbox(ctx context.Context, pod PodSandbox) error {
