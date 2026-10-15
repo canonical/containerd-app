@@ -1,3 +1,10 @@
+containerd-app (2.2.2-0ubuntu1.2) resolute; urgency=medium
+
+  * d/p/defer-ShutdownSandbox.patch: Add deferred call to ShutdownSandbox to
+    avoid leaks (LP: #2170996)
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Thu, 15 Oct 2026 11:33:35 -0300
+
 containerd-app (2.2.2-0ubuntu1.1) resolute-security; urgency=high
 
   * SECURITY UPDATE: HTTP/2 SETTINGS frame infinite loop (vendored
