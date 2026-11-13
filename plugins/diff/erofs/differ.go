@@ -22,7 +22,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"runtime"
 	"strings"
 	"time"
 
@@ -53,6 +52,8 @@ type erofsDiff struct {
 	// enableTarIndex enables generating tar index for tar content
 	// instead of fully converting the tar to EROFS format
 	enableTarIndex bool
+	// enableDmverity enables formatting layers with dm-verity after creation
+	enableDmverity bool
 }
 
 // DifferOpt is an option for configuring the erofs differ
@@ -72,6 +73,13 @@ func WithTarIndexMode() DifferOpt {
 	}
 }
 
+// WithDmverity enables dm-verity formatting for EROFS layers
+func WithDmverity() DifferOpt {
+	return func(d *erofsDiff) {
+		d.enableDmverity = true
+	}
+}
+
 // NewErofsDiffer creates a new EROFS differ with the provided options
 func NewErofsDiffer(store content.Store, opts ...DifferOpt) differ {
 	d := &erofsDiff{
@@ -84,27 +92,9 @@ func NewErofsDiffer(store content.Store, opts ...DifferOpt) differ {
 	}
 
 	// Add default block size on darwin if not already specified
-	d.mkfsExtraOpts = addDefaultMkfsOpts(d.mkfsExtraOpts)
+	d.mkfsExtraOpts = erofsutils.AddDefaultMkfsOpts(d.mkfsExtraOpts)
 
 	return d
-}
-
-// A valid EROFS native layer media type should end with ".erofs".
-//
-// Please avoid using any +suffix to list the algorithms used inside EROFS
-// blobs, since:
-//   - Each EROFS layer can use multiple compression algorithms;
-//   - The suffixes should only indicate the corresponding preprocessor for
-//     `images.DiffCompression`.
-//
-// Since `images.DiffCompression` doesn't support arbitrary media types,
-// disallow non-empty suffixes for now.
-func isErofsMediaType(mt string) bool {
-	mediaType, _, hasExt := strings.Cut(mt, "+")
-	if hasExt {
-		return false
-	}
-	return strings.HasSuffix(mediaType, ".erofs")
 }
 
 func (s erofsDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []mount.Mount, opts ...diff.ApplyOpt) (d ocispec.Descriptor, err error) {
@@ -120,11 +110,32 @@ func (s erofsDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []
 		}
 	}()
 
-	native := false
-	if isErofsMediaType(desc.MediaType) {
-		native = true
-	} else if _, err := images.DiffCompression(ctx, desc.MediaType); err != nil {
-		return emptyDesc, fmt.Errorf("currently unsupported media type: %s", desc.MediaType)
+	var (
+		erofsLayerType string
+		fastcopy       bool
+	)
+	diffLayerType := desc.MediaType
+	native := erofsutils.IsErofsMediaType(diffLayerType)
+	if native {
+		base, ext, hasExt := strings.Cut(diffLayerType, "+")
+		// Mimic the OCI layer for EROFS blobs for diff.NewProcessorChain(), so
+		// there is no need to bother with too much unrelated logic for now.
+		diffLayerType = ocispec.MediaTypeImageLayer
+		if hasExt {
+			// `+zstd` indicates that the original EROFS blob is additionally
+			// compressed with standard zstd streams.
+			// Only `+zstd` is considered since it is more performant than gzip
+			// and has useful features like skippable frames.
+			if ext != "zstd" {
+				return emptyDesc, fmt.Errorf("unsupported erofs layer suffix: %s", ext)
+			}
+			diffLayerType = diffLayerType + "+zstd"
+		} else {
+			fastcopy = true
+		}
+		erofsLayerType = base
+	} else if _, err := images.DiffCompression(ctx, diffLayerType); err != nil {
+		return emptyDesc, fmt.Errorf("unsupported media type: %s", desc.MediaType)
 	}
 
 	var config diff.ApplyConfig
@@ -146,7 +157,8 @@ func (s erofsDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []
 	defer ra.Close()
 
 	layerBlobPath := path.Join(layer, "layer.erofs")
-	if native {
+	// Allow copy file range when there is an uncompressed native EROFS layer
+	if fastcopy {
 		f, err := os.Create(layerBlobPath)
 		if err != nil {
 			return emptyDesc, err
@@ -156,10 +168,11 @@ func (s erofsDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []
 		if err != nil {
 			return emptyDesc, err
 		}
+		log.G(ctx).WithField("path", layerBlobPath).Debug("Applied layer with uncompressed EROFS blob")
 		return desc, nil
 	}
 
-	processor := diff.NewProcessorChain(desc.MediaType, content.NewReader(ra))
+	processor := diff.NewProcessorChain(diffLayerType, content.NewReader(ra))
 	for {
 		if processor, err = diff.GetProcessor(ctx, processor, config.ProcessorPayloads); err != nil {
 			return emptyDesc, fmt.Errorf("failed to get stream processor for %s: %w", desc.MediaType, err)
@@ -176,16 +189,28 @@ func (s erofsDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []
 	}
 
 	// Choose between tar index or tar conversion mode
-	if s.enableTarIndex {
+	// Generate deterministic UUID from layer digest
+	u := uuid.NewSHA1(uuid.NameSpaceURL, []byte("erofs:blobs/"+desc.Digest))
+	if native {
+		f, err := os.Create(layerBlobPath)
+		if err != nil {
+			return emptyDesc, err
+		}
+		_, err = io.Copy(f, rc)
+		f.Close()
+		if err != nil {
+			return emptyDesc, err
+		}
+		log.G(ctx).WithField("path", layerBlobPath).Debug("Applied layer with compressed EROFS blob")
+	} else if s.enableTarIndex {
 		// Use the tar index method: generate tar index and append tar
-		err = erofsutils.GenerateTarIndexAndAppendTar(ctx, rc, layerBlobPath, s.mkfsExtraOpts)
+		err = erofsutils.GenerateTarIndexAndAppendTar(ctx, rc, layerBlobPath, u.String(), s.mkfsExtraOpts)
 		if err != nil {
 			return emptyDesc, fmt.Errorf("failed to generate tar index: %w", err)
 		}
 		log.G(ctx).WithField("path", layerBlobPath).Debug("Applied layer using tar index mode")
 	} else {
 		// Use the tar method: fully convert tar to EROFS
-		u := uuid.NewSHA1(uuid.NameSpaceURL, []byte("erofs:blobs/"+desc.Digest))
 		err = erofsutils.ConvertTarErofs(ctx, rc, layerBlobPath, u.String(), s.mkfsExtraOpts)
 		if err != nil {
 			return emptyDesc, fmt.Errorf("failed to convert tar to erofs: %w", err)
@@ -198,6 +223,20 @@ func (s erofsDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []
 		return emptyDesc, err
 	}
 
+	// Format with dm-verity if enabled
+	if s.enableDmverity {
+		if err := s.formatDmverityLayer(ctx, layerBlobPath); err != nil {
+			return emptyDesc, fmt.Errorf("failed to format dm-verity layer: %w", err)
+		}
+	}
+
+	if native {
+		return ocispec.Descriptor{
+			MediaType: erofsLayerType,
+			Size:      rc.c,
+			Digest:    digester.Digest(),
+		}, nil
+	}
 	return ocispec.Descriptor{
 		MediaType: ocispec.MediaTypeImageLayer,
 		Size:      rc.c,
@@ -214,22 +253,4 @@ func (rc *readCounter) Read(p []byte) (n int, err error) {
 	n, err = rc.r.Read(p)
 	rc.c += int64(n)
 	return
-}
-
-// addDefaultMkfsOpts adds default options for mkfs.erofs
-func addDefaultMkfsOpts(mkfsExtraOpts []string) []string {
-	if runtime.GOOS != "darwin" {
-		return mkfsExtraOpts
-	}
-
-	// Check if -b argument is already present
-	for _, opt := range mkfsExtraOpts {
-		if strings.HasPrefix(opt, "-b") {
-			return mkfsExtraOpts
-		}
-	}
-
-	// Add -b4096 as the first option to prevent unusable block
-	// size from being used on macOS.
-	return append([]string{"-b4096"}, mkfsExtraOpts...)
 }
