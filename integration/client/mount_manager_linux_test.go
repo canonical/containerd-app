@@ -159,11 +159,9 @@ func TestMountAtRuntime(t *testing.T) {
 		wg  sync.WaitGroup
 		buf = bytes.NewBuffer(nil)
 	)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		io.Copy(buf, direct.Stdout)
-	}()
+	})
 
 	task, err = container2.NewTask(ctx, direct.IOCreate, containerd.WithRootFS(m))
 	require.NoError(t, err)
@@ -223,10 +221,7 @@ func createImgFile(t *testing.T, name string) string {
 }
 
 func setupMount(t *testing.T, f string) {
-	root, err := os.MkdirTemp(t.TempDir(), "")
-	require.NoError(t, err)
-	defer os.RemoveAll(root)
-
+	root := t.TempDir()
 	m := []mount.Mount{
 		{
 			Type:    "xfs",

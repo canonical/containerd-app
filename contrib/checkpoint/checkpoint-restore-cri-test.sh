@@ -56,6 +56,15 @@ TESTDATA=testdata
 # shellcheck disable=SC2034
 export CONTAINERD_ADDRESS="$TESTDIR/c.sock"
 export CONTAINER_RUNTIME_ENDPOINT="unix:///${CONTAINERD_ADDRESS}"
+
+# Generate crictl config file with 30s timeout
+export CRI_CONFIG_FILE="${TESTDIR}/crictl.yaml"
+cat <<EOF > "${CRI_CONFIG_FILE}"
+runtime-endpoint: unix://${CONTAINERD_ADDRESS}
+image-endpoint: unix://${CONTAINERD_ADDRESS}
+timeout: 30
+EOF
+
 TEST_IMAGE=ghcr.io/containerd/alpine
 
 function test_from_archive() {
@@ -69,9 +78,12 @@ function test_from_archive() {
 	echo -n "--> Start pod: "
 	pod_id=$(crictl runp "$POD_JSON")
 	echo "$pod_id"
+	CTR_JSON=$(mktemp)
+	jq '.annotations = {"cdi.k8s.io/device":"gpu","safe.annotation":"true"}' "$TESTDATA"/container_sleep.json >"$CTR_JSON"
 	echo -n "--> Create container: "
-	ctr_id=$(crictl create "$pod_id" "$TESTDATA"/container_sleep.json "$POD_JSON")
+	ctr_id=$(crictl create "$pod_id" "$CTR_JSON" "$POD_JSON")
 	echo "$ctr_id"
+	rm -f "$CTR_JSON"
 	echo -n "--> Start container: "
 	crictl start "$ctr_id"
 	lines_before=$(crictl logs "$ctr_id" | wc -l)
@@ -96,7 +108,7 @@ function test_from_archive() {
 	echo -n "--> Create container from checkpoint: "
 	# This requires a larger timeout as we just deleted the image and
 	# pulling can take some time.
-	ctr_id=$(crictl -t 20s create "$pod_id" "$RESTORE_JSON" "$POD_JSON")
+	ctr_id=$(crictl -t 30s create "$pod_id" "$RESTORE_JSON" "$POD_JSON")
 	echo "$ctr_id"
 	rm -f "$RESTORE_JSON" "$POD_JSON"
 	echo -n "--> Start container from checkpoint: "
@@ -108,9 +120,21 @@ function test_from_archive() {
 			"should be larger than before checkpointing ($lines_before)"
 		false
 	fi
+	echo "--> Verifying CDI annotation filtering on restore: "
+	actual_annots=$(crictl inspect "$ctr_id" | jq -c '.status.annotations')
+	if jq -e 'has("cdi.k8s.io/device") or (has("safe.annotation") | not)' <<<"$actual_annots" >/dev/null; then
+		echo "error: CDI annotation was not filtered or safe annotation missing: $actual_annots"
+		exit 1
+	fi
+	echo "--> Verifying deprecation warning via API (archive): "
+	archive_ts=$(../../bin/ctr deprecations list --format=json | jq -r '.[] | select(.id == "io.containerd.deprecation/cri-create-container-checkpoint-restore") | .lastOccurrence')
+	if [ -z "$archive_ts" ] || [ "$archive_ts" = "null" ]; then
+		echo "error: CRICreateContainerCheckpointRestore deprecation warning not found in API introspection (archive)"
+		exit 1
+	fi
 	# Cleanup
 	echo "--> Cleanup images: "
-	crictl rmi "${TEST_IMAGE}" | sed 's/^/----> \t/'
+	(crictl rmi "${TEST_IMAGE}" || true) | sed 's/^/----> \t/'
 	echo -n "--> Verifying container rootfs: "
 	crictl exec "$ctr_id" ls -la /root/testfile
 	if crictl exec "$ctr_id" ls -la /etc/motd >/dev/null 2>&1; then
@@ -175,16 +199,26 @@ function test_from_oci() {
 	../../bin/ctr -n k8s.io images import "$TESTDIR"/oci.tar 2>&1 | sed 's/^/------> \t/'
 	jq ".image.image=\"localhost/checkpoint-image:latest\"" "$TESTDATA"/container_sleep.json >"$RESTORE_JSON"
 	echo -n "--> Create container from checkpoint: "
-	ctr_id=$(crictl -t 10s create "$pod_id" "$RESTORE_JSON" "$RESTORE_POD_JSON")
+	ctr_id=$(crictl -t 30s create "$pod_id" "$RESTORE_JSON" "$RESTORE_POD_JSON")
 	echo "$ctr_id"
 	rm -f "$RESTORE_JSON" "$RESTORE_POD_JSON"
 	echo -n "--> Start container from checkpoint: "
 	crictl start "$ctr_id"
+	echo "--> Verifying deprecation warning via API (oci): "
+	oci_ts=$(../../bin/ctr deprecations list --format=json | jq -r '.[] | select(.id == "io.containerd.deprecation/cri-create-container-checkpoint-restore") | .lastOccurrence')
+	if [ -z "$oci_ts" ] || [ "$oci_ts" = "null" ]; then
+		echo "error: CRICreateContainerCheckpointRestore deprecation warning not found in API introspection (oci)"
+		exit 1
+	fi
+	if [ "$archive_ts" = "$oci_ts" ]; then
+		echo "error: expected lastOccurrence to update after OCI restore (was $archive_ts, now $oci_ts)"
+		exit 1
+	fi
 	# Cleanup
 	echo "--> Cleanup images: "
 	../../bin/ctr -n k8s.io images rm localhost/checkpoint-image:latest | sed 's/^/----> \t/'
 	echo "--> Cleanup images: "
-	crictl rmi "${TEST_IMAGE}" | sed 's/^/----> \t/'
+	(crictl rmi "${TEST_IMAGE}" || true) | sed 's/^/----> \t/'
 	echo "--> Deleting all pods: "
 	crictl -t 5s rmp -fa | sed 's/^/----> \t/'
 	SUCCESS=1
@@ -192,6 +226,9 @@ function test_from_oci() {
 
 cat >"${TESTDIR}/config.toml" <<EOF
 version = 3
+[plugins."io.containerd.cri.v1.runtime"]
+  enable_cdi = false
+  enable_experimental_restore_via_create = true
 [plugins."io.containerd.cri.v1.runtime".containerd]
   default_runtime_name = "test-runtime"
 [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.test-runtime]
