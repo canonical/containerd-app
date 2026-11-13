@@ -29,6 +29,11 @@ import (
 	"github.com/docker/go-units"
 )
 
+const (
+	capaRemapIDs     = "remap-ids"
+	capaOnlyRemapIDs = "only-remap-ids"
+)
+
 // Config represents configuration for the native plugin.
 type Config struct {
 	// Root directory for the plugin
@@ -46,6 +51,10 @@ type Config struct {
 
 	// DefaultSize is the default size of a writable layer in string
 	DefaultSize string `toml:"default_size"`
+
+	// DmverityMode controls dm-verity behavior: "auto" (use if available), "on" (require), "off" (disable)
+	// Linux only
+	DmverityMode string `toml:"dmverity_mode"`
 }
 
 func init() {
@@ -53,7 +62,7 @@ func init() {
 		Type:   plugins.SnapshotPlugin,
 		ID:     "erofs",
 		Config: &Config{},
-		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
+		InitFn: func(ic *plugin.InitContext) (any, error) {
 			ic.Meta.Platforms = append(ic.Meta.Platforms, platforms.DefaultSpec())
 
 			config, ok := ic.Config.(*Config)
@@ -85,6 +94,17 @@ func init() {
 					return nil, fmt.Errorf("failed to parse default_size '%v': %w", config.DefaultSize, err)
 				}
 				opts = append(opts, erofs.WithDefaultSize(size))
+			}
+
+			if config.DmverityMode != "" {
+				opts = append(opts, erofs.WithDmverityMode(config.DmverityMode))
+			}
+
+			// Don't bother supporting overlay's slow_chown, only RemapIDs
+			ic.Meta.Capabilities = append(ic.Meta.Capabilities, capaOnlyRemapIDs)
+			if ok, err := supportsIDMappedMounts(); err == nil && ok {
+				opts = append(opts, erofs.WithRemapIDs())
+				ic.Meta.Capabilities = append(ic.Meta.Capabilities, capaRemapIDs)
 			}
 
 			ic.Meta.Exports[plugins.SnapshotterRootDir] = root

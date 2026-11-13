@@ -19,9 +19,6 @@ containerd is designed to be embedded into a larger system, rather than being us
 
 ## Announcements
 
-### containerd v2.0 is now released!
-See [`docs/containerd-2.0.md`](docs/containerd-2.0.md).
-
 ### Now Recruiting
 
 We are a large inclusive OSS project that is welcoming help of any kind shape or form:
@@ -78,7 +75,7 @@ require the btrfs kernel module and btrfs tools to be installed on your Linux
 distribution.
 
 To use Linux checkpoint and restore features, you will need `criu` installed on
-your system. See more details in [Checkpoint and Restore](#checkpoint-and-restore).
+your system. See more details in [Checkpoint and Restore](docs/features.md#checkpoint-and-restore).
 
 Build requirements for developers are listed in [BUILDING](BUILDING.md).
 
@@ -151,7 +148,7 @@ A Kubernetes incubator project, [cri-tools](https://github.com/kubernetes-sigs/c
 
 #### CRI Guides
 * [Installing with Ansible and Kubeadm](contrib/ansible/README.md)
-* [For Non-Ansible Users, Preforming a Custom Installation Using the Release Tarball and Kubeadm](docs/getting-started.md)
+* [For Non-Ansible Users, Performing a Custom Installation Using the Release Tarball and Kubeadm](docs/getting-started.md)
 * [CRI Plugin Testing Guide](./docs/cri/testing.md)
 * [Debugging Pods, Containers, and Images with `crictl`](./docs/cri/crictl.md)
 * [Configuring `cri` Plugins](./docs/cri/config.md)

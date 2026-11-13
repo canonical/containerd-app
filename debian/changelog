@@ -1,3 +1,19 @@
+containerd-app (2.3.4+dfsg1-0ubuntu0.24.04.1) noble; urgency=medium
+
+  * New upstream version 2.3.4+dfsg1 (LP: #2153483)
+  * d/{copyright,watch}: do not ship non-free headers
+  * d/copyright: update to match stonking
+  * d/patches: drop security fixes applied upstream
+  * d/p/skip-api-tests.patch: skip tests of new API module
+  * d/p/unembed-nss.patch: use libnss to avoid vendored non-free headers
+  * d/control: B-D on libnss3-dev
+  * Skip additional test requiring HugeTLB controller
+  * d/control: build with golang 1.26
+  * d/rules: add golang 1.26 to PATH
+  * d/t/basic-smoke: remove shell's -u option
+
+ -- Athos Ribeiro <athos@ubuntu.com>  Fri, 13 Nov 2026 10:53:08 -0300
+
 containerd-app (2.2.1-0ubuntu1~24.04.4) noble; urgency=medium
 
   * d/p/defer-ShutdownSandbox.patch: Add deferred call to ShutdownSandbox to

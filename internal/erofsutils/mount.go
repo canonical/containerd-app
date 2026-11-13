@@ -32,6 +32,11 @@ import (
 	"github.com/containerd/containerd/v2/core/mount"
 )
 
+// IsErofsMediaType returns true if the media type is an EROFS layer type.
+func IsErofsMediaType(mt string) bool {
+	return strings.HasPrefix(mt, "application/vnd.erofs.layer")
+}
+
 func ConvertTarErofs(ctx context.Context, r io.Reader, layerPath, uuid string, mkfsExtraOpts []string) error {
 	args := append([]string{"--tar=f", "--aufs", "--quiet", "-Enoinline_data"}, mkfsExtraOpts...)
 	if uuid != "" {
@@ -44,7 +49,7 @@ func ConvertTarErofs(ctx context.Context, r io.Reader, layerPath, uuid string, m
 	if err != nil {
 		return fmt.Errorf("erofs apply failed: %s: %w", out, err)
 	}
-	log.G(ctx).Infof("running %s %s %v", cmd.Path, cmd.Args, string(out))
+	log.G(ctx).Debugf("running %s %s %v", cmd.Path, cmd.Args, string(out))
 	return nil
 }
 
@@ -54,7 +59,7 @@ func ConvertTarErofs(ctx context.Context, r io.Reader, layerPath, uuid string, m
 // The `--tar=i` option instructs mkfs.erofs to only generate the tar index
 // for the tar content. The resulting file structure is:
 // [Tar index][Original tar content]
-func GenerateTarIndexAndAppendTar(ctx context.Context, r io.Reader, layerPath string, mkfsExtraOpts []string) error {
+func GenerateTarIndexAndAppendTar(ctx context.Context, r io.Reader, layerPath, uuid string, mkfsExtraOpts []string) error {
 	// Create a temporary file for storing the tar content
 	tarFile, err := os.CreateTemp("", "erofs-tar-*")
 	if err != nil {
@@ -68,6 +73,9 @@ func GenerateTarIndexAndAppendTar(ctx context.Context, r io.Reader, layerPath st
 
 	// Generate tar index directly to layerPath using --tar=i option
 	args := append([]string{"--tar=i", "--aufs", "--quiet"}, mkfsExtraOpts...)
+	if uuid != "" {
+		args = append(args, []string{"-U", uuid}...)
+	}
 	args = append(args, layerPath)
 	cmd := exec.CommandContext(ctx, "mkfs.erofs", args...)
 	cmd.Stdin = teeReader
@@ -76,10 +84,7 @@ func GenerateTarIndexAndAppendTar(ctx context.Context, r io.Reader, layerPath st
 		return fmt.Errorf("tar index generation failed with command 'mkfs.erofs %s': %s: %w",
 			strings.Join(args, " "), out, err)
 	}
-
-	// Log the command execution for debugging
-	log.G(ctx).Tracef("Generated tar index with command: %s %s, output: %s",
-		cmd.Path, strings.Join(cmd.Args, " "), string(out))
+	log.G(ctx).Debugf("running %s %v %s", cmd.Path, cmd.Args, string(out))
 
 	// Open layerPath for appending
 	f, err := os.OpenFile(layerPath, os.O_APPEND|os.O_WRONLY, 0644)
@@ -101,6 +106,19 @@ func GenerateTarIndexAndAppendTar(ctx context.Context, r io.Reader, layerPath st
 	log.G(ctx).Infof("Successfully generated EROFS layer with tar index and tar content: %s", layerPath)
 
 	return nil
+}
+
+// AddDefaultMkfsOpts adds default options for mkfs.erofs
+func AddDefaultMkfsOpts(mkfsExtraOpts []string) []string {
+	// Check if -b argument is already present
+	for _, opt := range mkfsExtraOpts {
+		if strings.HasPrefix(opt, "-b") {
+			return mkfsExtraOpts
+		}
+	}
+
+	// Default to a 4K block size so images mount on any page size.
+	return append([]string{"-b4096"}, mkfsExtraOpts...)
 }
 
 func ConvertErofs(ctx context.Context, layerPath string, srcDir string, mkfsExtraOpts []string) error {
